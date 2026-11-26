@@ -65,6 +65,60 @@ typedef struct AVLNodeSnapshot {
     int64_t right_id;
 } AVLNodeSnapshot;
 
+/* Algorithm Debugger Trace Event */
+typedef enum {
+    TRACE_OP_STARTED = 0,
+    TRACE_NODE_COMPARISON,
+    TRACE_TRAVERSE_LEFT,
+    TRACE_TRAVERSE_RIGHT,
+    TRACE_PRED_LOOKUP,
+    TRACE_SUCC_LOOKUP,
+    TRACE_INTERVAL_EXTEND,
+    TRACE_INTERVAL_MERGE,
+    TRACE_NODE_INSERT,
+    TRACE_NODE_DELETE,
+    TRACE_BALANCE_CALC,
+    TRACE_ROTATION_LL,
+    TRACE_ROTATION_RR,
+    TRACE_ROTATION_LR,
+    TRACE_ROTATION_RL,
+    TRACE_OP_COMPLETED
+} TraceEventType;
+
+typedef struct {
+    int seq_num;
+    TraceEventType type;
+    package_id_t package_id;
+    int64_t node_id;
+    Interval interval_val;
+    int height;
+    int balance_factor;
+    char description[128];
+} DebuggerTraceStep;
+
+typedef struct {
+    size_t step_count;
+    DebuggerTraceStep steps[64];
+    int nodes_visited;
+    int node_comparisons;
+    int rotations_performed;
+    int height_before;
+    int height_after;
+    int64_t latency_ns;
+} DebuggerTrace;
+
+/* Undo/Redo Record */
+typedef enum {
+    UNDO_OP_ADD = 0,
+    UNDO_OP_REMOVE
+} UndoOpType;
+
+typedef struct {
+    UndoOpType type;
+    package_id_t package_id;
+    int64_t timestamp;
+} UndoRecord;
+
 /* Overall tree snapshot */
 typedef struct {
     size_t node_count;
@@ -100,6 +154,18 @@ ArrivalEvent warehouse_add_detailed(Warehouse *w, package_id_t id);
 size_t warehouse_add_batch(Warehouse *w, const package_id_t *ids, size_t count);
 RemovalResult warehouse_remove(Warehouse *w, package_id_t id);
 RemovalEvent warehouse_remove_detailed(Warehouse *w, package_id_t id);
+
+/* Trace Instrumented Debugger Mutations */
+ArrivalEvent warehouse_add_traced(Warehouse *w, package_id_t id, DebuggerTrace *out_trace);
+RemovalEvent warehouse_remove_traced(Warehouse *w, package_id_t id, DebuggerTrace *out_trace);
+
+/* Undo / Redo Operations */
+bool warehouse_undo(Warehouse *w, UndoRecord *out_record);
+bool warehouse_redo(Warehouse *w, UndoRecord *out_record);
+bool warehouse_can_undo(const Warehouse *w);
+bool warehouse_can_redo(const Warehouse *w);
+
+const char *trace_event_type_str(TraceEventType t);
 
 /* Membership & Queries */
 bool warehouse_contains(const Warehouse *w, package_id_t id);

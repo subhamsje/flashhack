@@ -7,6 +7,7 @@ import { LiveArrivalPage } from './pages/LiveArrivalPage';
 import { RangeAnalysisPage } from './pages/RangeAnalysisPage';
 import { AlgorithmPage } from './pages/AlgorithmPage';
 import { ActivityLogPage } from './pages/ActivityLogPage';
+import { AlgorithmDebuggerPage } from './pages/AlgorithmDebuggerPage';
 
 export const App: React.FC = () => {
   return (
@@ -20,13 +21,16 @@ export const App: React.FC = () => {
             {/* Page 2: Live Arrival Index */}
             <Route path="/app" element={<LiveArrivalPage />} />
 
-            {/* Page 3: Activity Log */}
-            <Route path="/activity-log" element={<ActivityLogPage />} />
-
-            {/* Page 4: Range Analysis */}
+            {/* Page 3: Missing Package Intelligence & Range Analysis */}
             <Route path="/range-analysis" element={<RangeAnalysisPage />} />
 
-            {/* Page 5: About the Algorithm */}
+            {/* Page 4: Activity Log & Time Travel Replay */}
+            <Route path="/activity-log" element={<ActivityLogPage />} />
+
+            {/* Page 5: Algorithm Step Debugger */}
+            <Route path="/debugger" element={<AlgorithmDebuggerPage />} />
+
+            {/* Page 6: About the Algorithm */}
             <Route path="/algorithm" element={<AlgorithmPage />} />
           </Route>
 

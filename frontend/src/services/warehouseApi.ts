@@ -181,6 +181,71 @@ class LocalWarehouseEngine {
     };
   }
 
+  remove(id: number): RemovalResponse {
+    let targetIdx = -1;
+    for (let i = 0; i < this.intervals.length; i++) {
+      if (id >= this.intervals[i].start && id <= this.intervals[i].end) {
+        targetIdx = i;
+        break;
+      }
+    }
+
+    const prevCount = this.intervals.length;
+
+    if (targetIdx === -1) {
+      return {
+        success: false,
+        package_id: id,
+        operation: 'NOT_FOUND',
+        prev_interval_count: prevCount,
+        new_interval_count: prevCount,
+        total_packages: this.totalPackages,
+        execution_time_ns: 120,
+        touched_prev: { start: 0, end: 0 },
+        touched_new: [],
+        current_intervals: [...this.intervals]
+      };
+    }
+
+    const iv = this.intervals[targetIdx];
+    const touchedPrev = { ...iv };
+    const touchedNew: Interval[] = [];
+    this.totalPackages--;
+    let op: RemovalResponse['operation'] = 'SHRUNK_LEFT';
+
+    if (iv.start === iv.end) {
+      op = 'NODE_DELETED';
+      this.intervals.splice(targetIdx, 1);
+    } else if (id === iv.start) {
+      op = 'SHRUNK_LEFT';
+      iv.start = id + 1;
+      touchedNew.push({ ...iv });
+    } else if (id === iv.end) {
+      op = 'SHRUNK_RIGHT';
+      iv.end = id - 1;
+      touchedNew.push({ ...iv });
+    } else {
+      op = 'SPLIT';
+      const rightPart: Interval = { start: id + 1, end: iv.end };
+      iv.end = id - 1;
+      this.intervals.splice(targetIdx + 1, 0, rightPart);
+      touchedNew.push({ ...iv }, rightPart);
+    }
+
+    return {
+      success: true,
+      package_id: id,
+      operation: op,
+      prev_interval_count: prevCount,
+      new_interval_count: this.intervals.length,
+      total_packages: this.totalPackages,
+      execution_time_ns: 250,
+      touched_prev: touchedPrev,
+      touched_new: touchedNew,
+      current_intervals: [...this.intervals]
+    };
+  }
+
   getGaps(low: number, high: number): Interval[] {
     const gaps: Interval[] = [];
     let curr = low;
@@ -266,19 +331,9 @@ export const warehouseApi = {
       });
       if (res.ok) return await res.json();
     } catch (e) {}
-
-    return {
-      success: true,
-      package_id: packageId,
-      operation: 'NODE_DELETED',
-      prev_interval_count: engine.intervals.length,
-      new_interval_count: engine.intervals.length,
-      total_packages: engine.totalPackages,
-      execution_time_ns: 250,
-      touched_prev: { start: packageId, end: packageId },
-      touched_new: [],
-      current_intervals: [...engine.intervals]
-    };
+    // Fallback in-memory removal
+    const res = engine.remove(packageId);
+    return res;
   },
 
   async getIntervals(): Promise<{ success: boolean; intervals: Interval[]; total_packages: number; interval_count: number }> {
@@ -358,9 +413,56 @@ export const warehouseApi = {
   },
 
   async reset(): Promise<{ success: boolean }> {
+    try {
+      await fetch('/api/reset', { method: 'POST' });
+    } catch (e) {}
     engine.intervals = [];
     engine.history = [];
     engine.totalPackages = 0;
     return { success: true };
+  },
+
+  async undo(): Promise<{ success: boolean; package_id: number; can_undo: boolean; can_redo: boolean }> {
+    try {
+      const res = await fetch('/api/undo', { method: 'POST' });
+      if (res.ok) return await res.json();
+    } catch (e) {}
+    return { success: false, package_id: -1, can_undo: false, can_redo: false };
+  },
+
+  async redo(): Promise<{ success: boolean; package_id: number; can_undo: boolean; can_redo: boolean }> {
+    try {
+      const res = await fetch('/api/redo', { method: 'POST' });
+      if (res.ok) return await res.json();
+    } catch (e) {}
+    return { success: false, package_id: -1, can_undo: false, can_redo: false };
+  },
+
+  async addArrivalTraced(packageId: number): Promise<{
+    success: boolean;
+    package_id: number;
+    operation: string;
+    step_count: number;
+    nodes_visited: number;
+    node_comparisons: number;
+    height_before: number;
+    height_after: number;
+    latency_ns: number;
+    steps: Array<{
+      seq: number;
+      type: string;
+      desc: string;
+      start: number;
+      end: number;
+      height: number;
+      bf: number;
+    }>;
+  }> {
+    const res = await fetch('/api/trace/add', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ package_id: packageId })
+    });
+    return await res.json();
   }
 };

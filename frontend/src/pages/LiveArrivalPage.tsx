@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { PackagePlus, RotateCcw, Zap, Layers, Info, History, ArrowRight, Trash2, ShieldCheck, Check } from 'lucide-react';
+import { PackagePlus, RotateCcw, Zap, Layers, Info, History, ArrowRight, Trash2, ShieldCheck, Check, Undo2, Redo2, UploadCloud } from 'lucide-react';
 import { warehouseApi, type ArrivalResponse, type RemovalResponse, type Interval, type TreeResponse } from '../services/warehouseApi';
 import { AvlTreeSvg } from '../components/AvlTreeSvg';
 import { AdaptiveNumberLine } from '../components/AdaptiveNumberLine';
 import { useRealtimeSync } from '../hooks/useRealtimeSync';
+import { CsvBulkImportModal } from '../components/CsvBulkImportModal';
 
 export const LiveArrivalPage: React.FC = () => {
   const [packageIdInput, setPackageIdInput] = useState('');
@@ -15,11 +16,38 @@ export const LiveArrivalPage: React.FC = () => {
   const [lastEvent, setLastEvent] = useState<ArrivalResponse | null>(null);
   const [recentOperations, setRecentOperations] = useState<ArrivalResponse[]>([]);
   const [loading, setLoading] = useState(false);
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
   const [stepExplanation, setStepExplanation] = useState<string[]>([
     'Waiting for package arrivals. Enter an ID above to trigger C engine AVL tree insertion.'
   ]);
 
   const { logActivity, onlineDevices, connectionState } = useRealtimeSync();
+
+  const handleUndo = async () => {
+    setLoading(true);
+    const res = await warehouseApi.undo();
+    if (res.success) {
+      setCanUndo(res.can_undo);
+      setCanRedo(res.can_redo);
+      setStepExplanation([`Undid operation on Package #${res.package_id}`]);
+      await refreshAll();
+    }
+    setLoading(false);
+  };
+
+  const handleRedo = async () => {
+    setLoading(true);
+    const res = await warehouseApi.redo();
+    if (res.success) {
+      setCanUndo(res.can_undo);
+      setCanRedo(res.can_redo);
+      setStepExplanation([`Redid operation on Package #${res.package_id}`]);
+      await refreshAll();
+    }
+    setLoading(false);
+  };
 
   const refreshAll = async () => {
     const ivRes = await warehouseApi.getIntervals();
@@ -161,18 +189,50 @@ export const LiveArrivalPage: React.FC = () => {
 
   return (
     <div className="space-y-8 max-w-6xl mx-auto py-8 px-6">
-      {/* Header */}
+      {/* Header with Undo, Redo, Bulk Import, and Reset */}
       <div className="flex flex-wrap items-center justify-between border-b border-border pb-4 gap-4">
         <div>
           <span className="text-xs font-mono uppercase tracking-widest text-primary font-semibold">Core Demonstration</span>
           <h1 className="font-serif text-3xl font-bold text-text mt-1">Live Arrival Index</h1>
         </div>
-        <button
-          onClick={handleReset}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono text-muted hover:text-text border border-border rounded transition bg-surface"
-        >
-          <RotateCcw className="w-3.5 h-3.5" /> Clear Session
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Undo Button */}
+          <button
+            onClick={handleUndo}
+            disabled={loading || !canUndo}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono border border-border rounded transition bg-surface hover:bg-background disabled:opacity-40 disabled:cursor-not-allowed text-text shadow-sm"
+            title="Undo last package operation in C engine"
+          >
+            <Undo2 className="w-3.5 h-3.5 text-primary" /> Undo
+          </button>
+
+          {/* Redo Button */}
+          <button
+            onClick={handleRedo}
+            disabled={loading || !canRedo}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono border border-border rounded transition bg-surface hover:bg-background disabled:opacity-40 disabled:cursor-not-allowed text-text shadow-sm"
+            title="Redo previous package operation in C engine"
+          >
+            <Redo2 className="w-3.5 h-3.5 text-primary" /> Redo
+          </button>
+
+          {/* Bulk CSV / Excel Import */}
+          <button
+            onClick={() => setShowImportModal(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono border border-border rounded transition bg-surface hover:bg-background text-primary font-medium shadow-sm"
+            title="Import package arrivals in bulk via CSV"
+          >
+            <UploadCloud className="w-3.5 h-3.5 text-primary" /> CSV Import
+          </button>
+
+          {/* Clear Session */}
+          <button
+            onClick={handleReset}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono text-muted hover:text-text border border-border rounded transition bg-surface shadow-sm"
+          >
+            <RotateCcw className="w-3.5 h-3.5" /> Clear Session
+          </button>
+        </div>
       </div>
 
       {/* SECTION A: Package Input Controls */}
@@ -447,6 +507,16 @@ export const LiveArrivalPage: React.FC = () => {
           )}
         </div>
       </div>
+      {/* CSV Bulk Import Modal */}
+      <CsvBulkImportModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        onSuccess={async () => {
+          setStepExplanation(['Bulk import completed and merged in C AVL index.']);
+          await refreshAll();
+          await logActivity('BATCH_IMPORT', null, { source: 'csv_bulk_import' });
+        }}
+      />
     </div>
   );
 };

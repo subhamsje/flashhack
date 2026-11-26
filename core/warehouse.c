@@ -6,6 +6,8 @@
 #include <inttypes.h>
 #include <time.h>
 
+#define MAX_UNDO_STACK 100
+
 struct Warehouse {
     Node *root;
     size_t interval_count;
@@ -14,6 +16,12 @@ struct Warehouse {
     size_t extension_count;
     size_t creation_count;
     size_t duplicate_count;
+
+    /* Undo/Redo internal stacks */
+    UndoRecord undo_stack[MAX_UNDO_STACK];
+    size_t undo_count;
+    UndoRecord redo_stack[MAX_UNDO_STACK];
+    size_t redo_count;
 };
 
 Warehouse *warehouse_create(void) {
@@ -37,6 +45,73 @@ void warehouse_clear(Warehouse *w) {
     w->extension_count = 0;
     w->creation_count = 0;
     w->duplicate_count = 0;
+    w->undo_count = 0;
+    w->redo_count = 0;
+}
+
+static void push_undo(Warehouse *w, UndoOpType type, package_id_t id) {
+    if (!w) return;
+    if (w->undo_count < MAX_UNDO_STACK) {
+        w->undo_stack[w->undo_count].type = type;
+        w->undo_stack[w->undo_count].package_id = id;
+        w->undo_stack[w->undo_count].timestamp = (int64_t)time(NULL);
+        w->undo_count++;
+    } else {
+        memmove(&w->undo_stack[0], &w->undo_stack[1], sizeof(UndoRecord) * (MAX_UNDO_STACK - 1));
+        w->undo_stack[MAX_UNDO_STACK - 1].type = type;
+        w->undo_stack[MAX_UNDO_STACK - 1].package_id = id;
+        w->undo_stack[MAX_UNDO_STACK - 1].timestamp = (int64_t)time(NULL);
+    }
+}
+
+static void push_redo(Warehouse *w, UndoOpType type, package_id_t id) {
+    if (!w) return;
+    if (w->redo_count < MAX_UNDO_STACK) {
+        w->redo_stack[w->redo_count].type = type;
+        w->redo_stack[w->redo_count].package_id = id;
+        w->redo_stack[w->redo_count].timestamp = (int64_t)time(NULL);
+        w->redo_count++;
+    }
+}
+
+bool warehouse_can_undo(const Warehouse *w) {
+    return w && w->undo_count > 0;
+}
+
+bool warehouse_can_redo(const Warehouse *w) {
+    return w && w->redo_count > 0;
+}
+
+bool warehouse_undo(Warehouse *w, UndoRecord *out_record) {
+    if (!warehouse_can_undo(w)) return false;
+    UndoRecord rec = w->undo_stack[--w->undo_count];
+    if (out_record) *out_record = rec;
+
+    if (rec.type == UNDO_OP_ADD) {
+        /* Inverse of ADD is REMOVE */
+        warehouse_remove(w, rec.package_id);
+        push_redo(w, UNDO_OP_ADD, rec.package_id);
+    } else if (rec.type == UNDO_OP_REMOVE) {
+        /* Inverse of REMOVE is ADD */
+        warehouse_add(w, rec.package_id);
+        push_redo(w, UNDO_OP_REMOVE, rec.package_id);
+    }
+    return true;
+}
+
+bool warehouse_redo(Warehouse *w, UndoRecord *out_record) {
+    if (!warehouse_can_redo(w)) return false;
+    UndoRecord rec = w->redo_stack[--w->redo_count];
+    if (out_record) *out_record = rec;
+
+    if (rec.type == UNDO_OP_ADD) {
+        warehouse_add(w, rec.package_id);
+        push_undo(w, UNDO_OP_ADD, rec.package_id);
+    } else if (rec.type == UNDO_OP_REMOVE) {
+        warehouse_remove(w, rec.package_id);
+        push_undo(w, UNDO_OP_REMOVE, rec.package_id);
+    }
+    return true;
 }
 
 ArrivalEvent warehouse_add_detailed(Warehouse *w, package_id_t id) {
@@ -152,11 +227,17 @@ ArrivalEvent warehouse_add_detailed(Warehouse *w, package_id_t id) {
 
 ArrivalResult warehouse_add(Warehouse *w, package_id_t id) {
     ArrivalEvent ev = warehouse_add_detailed(w, id);
+    if (ev.result != ARRIVAL_DUPLICATE) {
+        push_undo(w, UNDO_OP_ADD, id);
+    }
     return ev.result;
 }
 
 RemovalResult warehouse_remove(Warehouse *w, package_id_t id) {
     RemovalEvent ev = warehouse_remove_detailed(w, id);
+    if (ev.result != REMOVAL_NOT_FOUND) {
+        push_undo(w, UNDO_OP_REMOVE, id);
+    }
     return ev.result;
 }
 
@@ -574,6 +655,124 @@ size_t warehouse_import_csv(Warehouse *w, const char *csv_data) {
         line = next + 1;
     }
     return imported;
+}
+
+const char *trace_event_type_str(TraceEventType t) {
+    switch (t) {
+        case TRACE_OP_STARTED:        return "OP_STARTED";
+        case TRACE_NODE_COMPARISON:    return "NODE_COMPARISON";
+        case TRACE_TRAVERSE_LEFT:      return "TRAVERSE_LEFT";
+        case TRACE_TRAVERSE_RIGHT:     return "TRAVERSE_RIGHT";
+        case TRACE_PRED_LOOKUP:        return "PRED_LOOKUP";
+        case TRACE_SUCC_LOOKUP:        return "SUCC_LOOKUP";
+        case TRACE_INTERVAL_EXTEND:    return "INTERVAL_EXTEND";
+        case TRACE_INTERVAL_MERGE:     return "INTERVAL_MERGE";
+        case TRACE_NODE_INSERT:        return "NODE_INSERT";
+        case TRACE_NODE_DELETE:        return "NODE_DELETE";
+        case TRACE_BALANCE_CALC:       return "BALANCE_CALC";
+        case TRACE_ROTATION_LL:        return "ROTATION_LL";
+        case TRACE_ROTATION_RR:        return "ROTATION_RR";
+        case TRACE_ROTATION_LR:        return "ROTATION_LR";
+        case TRACE_ROTATION_RL:        return "ROTATION_RL";
+        case TRACE_OP_COMPLETED:       return "OP_COMPLETED";
+        default:                       return "UNKNOWN";
+    }
+}
+
+ArrivalEvent warehouse_add_traced(Warehouse *w, package_id_t id, DebuggerTrace *out_trace) {
+    if (out_trace) {
+        memset(out_trace, 0, sizeof(DebuggerTrace));
+        out_trace->height_before = avl_height(w ? w->root : NULL);
+
+        DebuggerTraceStep *st = &out_trace->steps[out_trace->step_count++];
+        st->seq_num = 1;
+        st->type = TRACE_OP_STARTED;
+        st->package_id = id;
+        snprintf(st->description, sizeof(st->description), "Ingestion initiated for package #%" PRId64, id);
+
+        Node *curr = w ? w->root : NULL;
+        while (curr && out_trace->step_count < 60) {
+            out_trace->nodes_visited++;
+            out_trace->node_comparisons++;
+
+            DebuggerTraceStep *comp = &out_trace->steps[out_trace->step_count++];
+            comp->seq_num = (int)out_trace->step_count;
+            comp->type = TRACE_NODE_COMPARISON;
+            comp->package_id = id;
+            comp->interval_val.start = curr->start;
+            comp->interval_val.end = curr->end;
+            comp->height = curr->height;
+            comp->balance_factor = avl_balance_factor(curr);
+
+            if (id < curr->start) {
+                snprintf(comp->description, sizeof(comp->description), "ID %" PRId64 " < start %" PRId64 " -> Branch left", id, curr->start);
+                DebuggerTraceStep *left = &out_trace->steps[out_trace->step_count++];
+                left->seq_num = (int)out_trace->step_count;
+                left->type = TRACE_TRAVERSE_LEFT;
+                left->package_id = id;
+                snprintf(left->description, sizeof(left->description), "Traversing left subtree");
+                curr = curr->left;
+            } else if (id > curr->end) {
+                snprintf(comp->description, sizeof(comp->description), "ID %" PRId64 " > end %" PRId64 " -> Branch right", id, curr->end);
+                DebuggerTraceStep *right = &out_trace->steps[out_trace->step_count++];
+                right->seq_num = (int)out_trace->step_count;
+                right->type = TRACE_TRAVERSE_RIGHT;
+                right->package_id = id;
+                snprintf(right->description, sizeof(right->description), "Traversing right subtree");
+                curr = curr->right;
+            } else {
+                snprintf(comp->description, sizeof(comp->description), "ID %" PRId64 " inside [%" PRId64 ", %" PRId64 "] -> Duplicate", id, curr->start, curr->end);
+                break;
+            }
+        }
+    }
+
+    ArrivalEvent ev = warehouse_add_detailed(w, id);
+    if (ev.result != ARRIVAL_DUPLICATE) {
+        push_undo(w, UNDO_OP_ADD, id);
+    }
+
+    if (out_trace) {
+        out_trace->height_after = avl_height(w ? w->root : NULL);
+        out_trace->latency_ns = ev.execution_time_ns;
+
+        DebuggerTraceStep *done = &out_trace->steps[out_trace->step_count++];
+        done->seq_num = (int)out_trace->step_count;
+        done->type = TRACE_OP_COMPLETED;
+        done->package_id = id;
+        snprintf(done->description, sizeof(done->description), "Operation %s executed. Index updated.", arrival_result_str(ev.result));
+    }
+    return ev;
+}
+
+RemovalEvent warehouse_remove_traced(Warehouse *w, package_id_t id, DebuggerTrace *out_trace) {
+    if (out_trace) {
+        memset(out_trace, 0, sizeof(DebuggerTrace));
+        out_trace->height_before = avl_height(w ? w->root : NULL);
+
+        DebuggerTraceStep *st = &out_trace->steps[out_trace->step_count++];
+        st->seq_num = 1;
+        st->type = TRACE_OP_STARTED;
+        st->package_id = id;
+        snprintf(st->description, sizeof(st->description), "Removal initiated for package #%" PRId64, id);
+    }
+
+    RemovalEvent ev = warehouse_remove_detailed(w, id);
+    if (ev.result != REMOVAL_NOT_FOUND) {
+        push_undo(w, UNDO_OP_REMOVE, id);
+    }
+
+    if (out_trace) {
+        out_trace->height_after = avl_height(w ? w->root : NULL);
+        out_trace->latency_ns = ev.execution_time_ns;
+
+        DebuggerTraceStep *done = &out_trace->steps[out_trace->step_count++];
+        done->seq_num = (int)out_trace->step_count;
+        done->type = TRACE_OP_COMPLETED;
+        done->package_id = id;
+        snprintf(done->description, sizeof(done->description), "Removal %s executed. Memory reclaimed.", removal_result_str(ev.result));
+    }
+    return ev;
 }
 
 const char *arrival_result_str(ArrivalResult res) {

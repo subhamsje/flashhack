@@ -87,7 +87,7 @@ export const AppLayout: React.FC = () => {
                 }`
               }
             >
-              Range Analysis
+              Missing Intelligence
             </NavLink>
             <NavLink
               to="/activity-log"
@@ -97,7 +97,17 @@ export const AppLayout: React.FC = () => {
                 }`
               }
             >
-              Activity Log
+              Activity & History
+            </NavLink>
+            <NavLink
+              to="/debugger"
+              className={({ isActive }) =>
+                `transition pb-1 border-b-2 ${
+                  isActive ? 'border-primary text-primary font-bold' : 'border-transparent text-muted hover:text-text'
+                }`
+              }
+            >
+              Algorithm Debugger
             </NavLink>
             <NavLink
               to="/algorithm"

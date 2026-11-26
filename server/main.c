@@ -594,6 +594,127 @@ static void handle_delete_package(int client_fd, const char *body, const char *u
     if (current_ivs) free(current_ivs);
 }
 
+/* POST /api/undo */
+static void handle_post_undo(int client_fd) {
+    pthread_mutex_lock(&warehouse_mutex);
+    UndoRecord rec;
+    bool ok = warehouse_undo(global_warehouse, &rec);
+    size_t cur_count = 0;
+    Interval *current_ivs = warehouse_get_intervals(global_warehouse, &cur_count);
+    size_t total_pkgs = warehouse_total_packages(global_warehouse);
+    bool can_undo = warehouse_can_undo(global_warehouse);
+    bool can_redo = warehouse_can_redo(global_warehouse);
+    pthread_mutex_unlock(&warehouse_mutex);
+
+    char resp[1024];
+    int pos = snprintf(resp, sizeof(resp),
+        "{\"success\":%s,\"package_id\":%" PRId64 ",\"undone_op\":\"%s\","
+        "\"can_undo\":%s,\"can_redo\":%s,\"total_packages\":%zu,\"intervals\":[",
+        ok ? "true" : "false",
+        ok ? rec.package_id : -1,
+        (rec.type == UNDO_OP_ADD) ? "ADD" : "REMOVE",
+        can_undo ? "true" : "false",
+        can_redo ? "true" : "false",
+        total_pkgs);
+
+    for (size_t i = 0; i < cur_count; i++) {
+        pos += snprintf(resp + pos, sizeof(resp) - pos,
+            "{\"start\":%" PRId64 ",\"end\":%" PRId64 "}%s",
+            current_ivs[i].start, current_ivs[i].end,
+            (i + 1 < cur_count) ? "," : "");
+    }
+    pos += snprintf(resp + pos, sizeof(resp) - pos, "]}");
+
+    send_json(client_fd, 200, resp);
+    if (current_ivs) free(current_ivs);
+}
+
+/* POST /api/redo */
+static void handle_post_redo(int client_fd) {
+    pthread_mutex_lock(&warehouse_mutex);
+    UndoRecord rec;
+    bool ok = warehouse_redo(global_warehouse, &rec);
+    size_t cur_count = 0;
+    Interval *current_ivs = warehouse_get_intervals(global_warehouse, &cur_count);
+    size_t total_pkgs = warehouse_total_packages(global_warehouse);
+    bool can_undo = warehouse_can_undo(global_warehouse);
+    bool can_redo = warehouse_can_redo(global_warehouse);
+    pthread_mutex_unlock(&warehouse_mutex);
+
+    char resp[1024];
+    int pos = snprintf(resp, sizeof(resp),
+        "{\"success\":%s,\"package_id\":%" PRId64 ",\"redone_op\":\"%s\","
+        "\"can_undo\":%s,\"can_redo\":%s,\"total_packages\":%zu,\"intervals\":[",
+        ok ? "true" : "false",
+        ok ? rec.package_id : -1,
+        (rec.type == UNDO_OP_ADD) ? "ADD" : "REMOVE",
+        can_undo ? "true" : "false",
+        can_redo ? "true" : "false",
+        total_pkgs);
+
+    for (size_t i = 0; i < cur_count; i++) {
+        pos += snprintf(resp + pos, sizeof(resp) - pos,
+            "{\"start\":%" PRId64 ",\"end\":%" PRId64 "}%s",
+            current_ivs[i].start, current_ivs[i].end,
+            (i + 1 < cur_count) ? "," : "");
+    }
+    pos += snprintf(resp + pos, sizeof(resp) - pos, "]}");
+
+    send_json(client_fd, 200, resp);
+    if (current_ivs) free(current_ivs);
+}
+
+/* POST /api/trace/add */
+static void handle_post_trace_add(int client_fd, const char *body) {
+    package_id_t id = -1;
+    const char *p = strstr(body, "\"package_id\":");
+    if (p) id = atoll(p + 13);
+
+    if (id < 0) {
+        send_error(client_fd, 400, "Invalid package_id");
+        return;
+    }
+
+    DebuggerTrace trace;
+    pthread_mutex_lock(&warehouse_mutex);
+    ArrivalEvent ev = warehouse_add_traced(global_warehouse, id, &trace);
+    TreeSnapshot snap = warehouse_get_tree_snapshot(global_warehouse);
+    pthread_mutex_unlock(&warehouse_mutex);
+
+    char *resp = (char *)malloc(BUFFER_SIZE);
+    if (!resp) {
+        send_error(client_fd, 500, "Memory allocation error");
+        warehouse_free_tree_snapshot(snap);
+        return;
+    }
+
+    int pos = snprintf(resp, BUFFER_SIZE,
+        "{\"success\":true,\"package_id\":%" PRId64 ",\"operation\":\"%s\","
+        "\"step_count\":%zu,\"nodes_visited\":%d,\"node_comparisons\":%d,"
+        "\"height_before\":%d,\"height_after\":%d,\"latency_ns\":%" PRId64 ",\"steps\":[",
+        id, arrival_result_str(ev.result),
+        trace.step_count, trace.nodes_visited, trace.node_comparisons,
+        trace.height_before, trace.height_after, trace.latency_ns);
+
+    for (size_t i = 0; i < trace.step_count; i++) {
+        pos += snprintf(resp + pos, BUFFER_SIZE - pos,
+            "{\"seq\":%d,\"type\":\"%s\",\"desc\":\"%s\",\"start\":%" PRId64 ",\"end\":%" PRId64 ",\"height\":%d,\"bf\":%d}%s",
+            trace.steps[i].seq_num,
+            trace_event_type_str(trace.steps[i].type),
+            trace.steps[i].description,
+            trace.steps[i].interval_val.start,
+            trace.steps[i].interval_val.end,
+            trace.steps[i].height,
+            trace.steps[i].balance_factor,
+            (i + 1 < trace.step_count) ? "," : "");
+    }
+    pos += snprintf(resp + pos, BUFFER_SIZE - pos, "]}");
+
+    send_json(client_fd, 200, resp);
+    free(resp);
+    warehouse_free_tree_snapshot(snap);
+}
+
 static void handle_client(int client_fd) {
     char buffer[BUFFER_SIZE];
     ssize_t bytes_read = read(client_fd, buffer, sizeof(buffer) - 1);
@@ -624,6 +745,12 @@ static void handle_client(int client_fd) {
         handle_post_arrival(client_fd, body);
     } else if (strcmp(method, "POST") == 0 && strcmp(uri, "/api/arrivals/batch") == 0) {
         handle_post_batch(client_fd, body);
+    } else if (strcmp(method, "POST") == 0 && strcmp(uri, "/api/trace/add") == 0) {
+        handle_post_trace_add(client_fd, body);
+    } else if (strcmp(method, "POST") == 0 && strcmp(uri, "/api/undo") == 0) {
+        handle_post_undo(client_fd);
+    } else if (strcmp(method, "POST") == 0 && strcmp(uri, "/api/redo") == 0) {
+        handle_post_redo(client_fd);
     } else if ((strcmp(method, "DELETE") == 0 && strncmp(uri, "/api/packages", 13) == 0) ||
                (strcmp(method, "POST") == 0 && strcmp(uri, "/api/packages/remove") == 0)) {
         handle_delete_package(client_fd, body, uri);
