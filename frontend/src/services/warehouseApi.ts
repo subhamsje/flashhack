@@ -352,34 +352,38 @@ class LocalWarehouseEngine {
   }
 
   getTreeNodes(): AVLNodeSnapshot[] {
-    // Generate balanced binary tree nodes for SVG visualization
     const nodes: AVLNodeSnapshot[] = [];
     if (this.intervals.length === 0) return nodes;
 
-    function build(ivs: Interval[], left: number, right: number, parentId: number, depth: number): number {
-      if (left > right) return -1;
+    function build(ivs: Interval[], left: number, right: number, parentId: number, depth: number): { id: number; height: number } | null {
+      if (left > right) return null;
       const mid = Math.floor((left + right) / 2);
       const nodeId = mid + 1;
 
-      const leftId = build(ivs, left, mid - 1, nodeId, depth + 1);
-      const rightId = build(ivs, mid + 1, right, nodeId, depth + 1);
+      const leftChild = build(ivs, left, mid - 1, nodeId, depth + 1);
+      const rightChild = build(ivs, mid + 1, right, nodeId, depth + 1);
+
+      const lh = leftChild ? leftChild.height : 0;
+      const rh = rightChild ? rightChild.height : 0;
+      const height = 1 + Math.max(lh, rh);
+      const balance_factor = lh - rh;
 
       nodes.push({
         node_id: nodeId,
         parent_id: parentId,
-        left_id: leftId,
-        right_id: rightId,
+        left_id: leftChild ? leftChild.id : -1,
+        right_id: rightChild ? rightChild.id : -1,
         start: ivs[mid].start,
         end: ivs[mid].end,
-        height: 1 + Math.max(0, 0),
-        balance_factor: 0,
+        height,
+        balance_factor,
         depth
       });
 
-      return nodeId;
+      return { id: nodeId, height };
     }
 
-    build(this.intervals, 0, this.intervals.length - 1, 0, 0);
+    build(this.intervals, 0, this.intervals.length - 1, -1, 0);
     return nodes;
   }
 }

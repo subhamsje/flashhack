@@ -194,6 +194,9 @@ export const LiveArrivalPage: React.FC = () => {
   const handleReset = async () => {
     if (!confirm('Clear all intervals in the live session?')) return;
     await warehouseApi.reset();
+    setIntervals([]);
+    setGaps([]);
+    setTreeData({ success: true, node_count: 0, max_depth: 0, total_packages: 0, nodes: [] });
     setLastEvent(null);
     setRecentOperations([]);
     setStepExplanation(['Index reset to empty state.']);

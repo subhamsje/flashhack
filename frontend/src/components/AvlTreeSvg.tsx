@@ -100,12 +100,13 @@ export const AvlTreeSvg: React.FC<AvlTreeSvgProps> = ({
     if (!rootData) return null;
 
     const rootH = hierarchy<HierarchyNodeData>(rootData);
-    const svgWidth = Math.max(680, nodes.length * 90);
-    const svgHeight = Math.max(280, (rootSnap.height + 2) * 80);
+    const svgWidth = Math.max(680, nodes.length * 120);
+    const maxH = Math.max(...nodes.map(n => n.height));
+    const svgHeight = Math.max(260, (maxH + 1) * 90);
 
     const treeGenerator = tree<HierarchyNodeData>()
-      .size([svgWidth - 140, svgHeight - 100])
-      .separation((a, b) => (a.parent === b.parent ? 1.2 : 1.6));
+      .size([svgWidth - 180, svgHeight - 80])
+      .separation((a, b) => (a.parent === b.parent ? 1.4 : 2.0));
 
     const treeLayout = treeGenerator(rootH);
     return {
@@ -279,9 +280,9 @@ export const AvlTreeSvg: React.FC<AvlTreeSvgProps> = ({
               activePathStep.includes(sourceSnap.node_id) &&
               activePathStep.includes(targetSnap.node_id);
 
-            const sx = link.source.x + 70;
+            const sx = link.source.x + 90;
             const sy = link.source.y + 40;
-            const tx = link.target.x + 70;
+            const tx = link.target.x + 90;
             const ty = link.target.y + 40;
 
             return (
@@ -320,7 +321,7 @@ export const AvlTreeSvg: React.FC<AvlTreeSvgProps> = ({
           {/* Animated AVL Nodes */}
           {descendantNodes.map((d) => {
             const snap = d.data.snapshot;
-            const x = d.x + 70;
+            const x = d.x + 90;
             const y = d.y + 40;
 
             const isHighlighted =
