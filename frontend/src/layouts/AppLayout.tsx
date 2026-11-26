@@ -58,7 +58,7 @@ export const AppLayout: React.FC = () => {
           </Link>
 
           {/* Navigation - Clean, streamlined primary links */}
-          <nav className="hidden lg:flex items-center gap-7 text-xs font-mono font-medium">
+          <nav className="hidden lg:flex items-center gap-6 text-xs font-mono font-medium">
             <NavLink
               to="/"
               end
@@ -99,6 +99,16 @@ export const AppLayout: React.FC = () => {
               }
             >
               Debugger
+            </NavLink>
+            <NavLink
+              to="/algorithm"
+              className={({ isActive }) =>
+                `transition py-1 border-b-2 ${
+                  isActive ? 'border-primary text-primary font-bold' : 'border-transparent text-muted hover:text-text'
+                }`
+              }
+            >
+              About
             </NavLink>
             <NavLink
               to="/activity-log"
