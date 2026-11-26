@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <ctype.h>
 #include <inttypes.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -524,6 +525,75 @@ static void handle_post_reset(int client_fd) {
     send_json(client_fd, 200, "{\"success\":true,\"message\":\"Warehouse index reset successfully\"}");
 }
 
+/* DELETE /api/packages/:id or POST /api/packages/remove */
+static void handle_delete_package(int client_fd, const char *body, const char *uri) {
+    package_id_t id = -1;
+    const char *id_param = strstr(uri, "id=");
+    if (id_param) {
+        id = atoll(id_param + 3);
+    } else if (strncmp(uri, "/api/packages/", 14) == 0 && isdigit(uri[14])) {
+        id = atoll(uri + 14);
+    } else if (body && *body) {
+        const char *p = strstr(body, "\"package_id\":");
+        if (p) id = atoll(p + 13);
+    }
+
+    if (id < 0) {
+        send_error(client_fd, 400, "Invalid or missing package_id");
+        return;
+    }
+
+    pthread_mutex_lock(&warehouse_mutex);
+    RemovalEvent ev = warehouse_remove_detailed(global_warehouse, id);
+    size_t cur_count = 0;
+    Interval *current_ivs = warehouse_get_intervals(global_warehouse, &cur_count);
+    size_t total_pkgs = warehouse_total_packages(global_warehouse);
+    pthread_mutex_unlock(&warehouse_mutex);
+
+    char *resp = (char *)malloc(BUFFER_SIZE);
+    if (!resp) {
+        send_error(client_fd, 500, "Memory allocation failed");
+        if (current_ivs) free(current_ivs);
+        return;
+    }
+
+    int pos = snprintf(resp, BUFFER_SIZE,
+        "{\"success\":%s,\"package_id\":%" PRId64 ",\"operation\":\"%s\","
+        "\"prev_interval_count\":%zu,\"new_interval_count\":%zu,"
+        "\"total_packages\":%zu,\"execution_time_ns\":%" PRId64 ","
+        "\"touched_prev\":{\"start\":%" PRId64 ",\"end\":%" PRId64 "},"
+        "\"touched_new\":[",
+        (ev.result != REMOVAL_NOT_FOUND) ? "true" : "false",
+        id,
+        removal_result_str(ev.result),
+        ev.prev_interval_count,
+        ev.new_interval_count,
+        total_pkgs,
+        ev.execution_time_ns,
+        ev.touched_prev.start,
+        ev.touched_prev.end);
+
+    for (size_t i = 0; i < ev.touched_new_count; i++) {
+        pos += snprintf(resp + pos, BUFFER_SIZE - pos,
+            "{\"start\":%" PRId64 ",\"end\":%" PRId64 "}%s",
+            ev.touched_new[i].start, ev.touched_new[i].end,
+            (i + 1 < ev.touched_new_count) ? "," : "");
+    }
+
+    pos += snprintf(resp + pos, BUFFER_SIZE - pos, "],\"current_intervals\":[");
+    for (size_t i = 0; i < cur_count; i++) {
+        pos += snprintf(resp + pos, BUFFER_SIZE - pos,
+            "{\"start\":%" PRId64 ",\"end\":%" PRId64 "}%s",
+            current_ivs[i].start, current_ivs[i].end,
+            (i + 1 < cur_count) ? "," : "");
+    }
+    pos += snprintf(resp + pos, BUFFER_SIZE - pos, "]}");
+
+    send_json(client_fd, 200, resp);
+    free(resp);
+    if (current_ivs) free(current_ivs);
+}
+
 static void handle_client(int client_fd) {
     char buffer[BUFFER_SIZE];
     ssize_t bytes_read = read(client_fd, buffer, sizeof(buffer) - 1);
@@ -554,6 +624,9 @@ static void handle_client(int client_fd) {
         handle_post_arrival(client_fd, body);
     } else if (strcmp(method, "POST") == 0 && strcmp(uri, "/api/arrivals/batch") == 0) {
         handle_post_batch(client_fd, body);
+    } else if ((strcmp(method, "DELETE") == 0 && strncmp(uri, "/api/packages", 13) == 0) ||
+               (strcmp(method, "POST") == 0 && strcmp(uri, "/api/packages/remove") == 0)) {
+        handle_delete_package(client_fd, body, uri);
     } else if (strcmp(method, "GET") == 0 && strncmp(uri, "/api/intervals", 14) == 0) {
         handle_get_intervals(client_fd);
     } else if (strcmp(method, "GET") == 0 && strncmp(uri, "/api/gaps", 9) == 0) {

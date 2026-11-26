@@ -15,6 +15,14 @@ typedef enum {
     ARRIVAL_DUPLICATE
 } ArrivalResult;
 
+typedef enum {
+    REMOVAL_NOT_FOUND = 0,
+    REMOVAL_NODE_DELETED,     /* Single-ID node [x, x] removed from tree */
+    REMOVAL_SHRUNK_LEFT,      /* Removed start boundary: [x, end] -> [x+1, end] */
+    REMOVAL_SHRUNK_RIGHT,     /* Removed end boundary: [start, x] -> [start, x-1] */
+    REMOVAL_SPLIT             /* Middle ID removed: [start, end] -> [start, x-1] & [x+1, end] */
+} RemovalResult;
+
 typedef struct {
     package_id_t start;
     package_id_t end;
@@ -31,6 +39,18 @@ typedef struct {
     Interval touched_new;
     int64_t execution_time_ns;
 } ArrivalEvent;
+
+/* Detailed metadata about a removal event for JSON/audit logging */
+typedef struct {
+    package_id_t package_id;
+    RemovalResult result;
+    size_t prev_interval_count;
+    size_t new_interval_count;
+    Interval touched_prev;
+    Interval touched_new[2];
+    size_t touched_new_count;
+    int64_t execution_time_ns;
+} RemovalEvent;
 
 /* AVL tree node snapshot for UI visualization */
 typedef struct AVLNodeSnapshot {
@@ -78,6 +98,8 @@ void warehouse_clear(Warehouse *w);
 ArrivalResult warehouse_add(Warehouse *w, package_id_t id);
 ArrivalEvent warehouse_add_detailed(Warehouse *w, package_id_t id);
 size_t warehouse_add_batch(Warehouse *w, const package_id_t *ids, size_t count);
+RemovalResult warehouse_remove(Warehouse *w, package_id_t id);
+RemovalEvent warehouse_remove_detailed(Warehouse *w, package_id_t id);
 
 /* Membership & Queries */
 bool warehouse_contains(const Warehouse *w, package_id_t id);
@@ -108,5 +130,6 @@ size_t warehouse_import_csv(Warehouse *w, const char *csv_data);
 
 /* String conversions */
 const char *arrival_result_str(ArrivalResult res);
+const char *removal_result_str(RemovalResult res);
 
 #endif /* WAREHOUSE_CORE_H */

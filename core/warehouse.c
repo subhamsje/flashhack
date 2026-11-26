@@ -155,6 +155,91 @@ ArrivalResult warehouse_add(Warehouse *w, package_id_t id) {
     return ev.result;
 }
 
+RemovalResult warehouse_remove(Warehouse *w, package_id_t id) {
+    RemovalEvent ev = warehouse_remove_detailed(w, id);
+    return ev.result;
+}
+
+RemovalEvent warehouse_remove_detailed(Warehouse *w, package_id_t id) {
+    RemovalEvent ev;
+    memset(&ev, 0, sizeof(RemovalEvent));
+    ev.package_id = id;
+
+    if (!w || id < 0) {
+        ev.result = REMOVAL_NOT_FOUND;
+        return ev;
+    }
+
+    struct timespec ts_start, ts_end;
+    clock_gettime(CLOCK_MONOTONIC, &ts_start);
+
+    ev.prev_interval_count = w->interval_count;
+
+    Node *containing = NULL, *pred = NULL, *succ = NULL;
+    avl_find_pred_succ(w->root, id, &containing, &pred, &succ);
+
+    if (!containing) {
+        ev.result = REMOVAL_NOT_FOUND;
+        ev.new_interval_count = w->interval_count;
+        clock_gettime(CLOCK_MONOTONIC, &ts_end);
+        ev.execution_time_ns = (ts_end.tv_sec - ts_start.tv_sec) * 1000000000LL +
+                               (ts_end.tv_nsec - ts_start.tv_nsec);
+        return ev;
+    }
+
+    w->total_packages--;
+    ev.touched_prev.start = containing->start;
+    ev.touched_prev.end = containing->end;
+
+    package_id_t s = containing->start;
+    package_id_t e = containing->end;
+
+    /* Case 1: Isolated single-element interval [x, x] -> delete entire node */
+    if (s == e) {
+        ev.result = REMOVAL_NODE_DELETED;
+        w->root = avl_delete(w->root, s);
+        w->interval_count--;
+        ev.touched_new_count = 0;
+    }
+    /* Case 2: Left boundary removal: [x, end] -> [x+1, end] */
+    else if (id == s) {
+        ev.result = REMOVAL_SHRUNK_LEFT;
+        w->root = avl_delete(w->root, s);
+        w->root = avl_insert(w->root, s + 1, e);
+        ev.touched_new[0].start = s + 1;
+        ev.touched_new[0].end = e;
+        ev.touched_new_count = 1;
+    }
+    /* Case 3: Right boundary removal: [start, x] -> [start, x-1] */
+    else if (id == e) {
+        ev.result = REMOVAL_SHRUNK_RIGHT;
+        containing->end = e - 1;
+        ev.touched_new[0].start = s;
+        ev.touched_new[0].end = e - 1;
+        ev.touched_new_count = 1;
+    }
+    /* Case 4: Middle element removal: split [start, end] into [start, x-1] and [x+1, end] */
+    else {
+        ev.result = REMOVAL_SPLIT;
+        w->root = avl_delete(w->root, s);
+        w->root = avl_insert(w->root, s, id - 1);
+        w->root = avl_insert(w->root, id + 1, e);
+        w->interval_count++;
+        ev.touched_new[0].start = s;
+        ev.touched_new[0].end = id - 1;
+        ev.touched_new[1].start = id + 1;
+        ev.touched_new[1].end = e;
+        ev.touched_new_count = 2;
+    }
+
+    ev.new_interval_count = w->interval_count;
+
+    clock_gettime(CLOCK_MONOTONIC, &ts_end);
+    ev.execution_time_ns = (ts_end.tv_sec - ts_start.tv_sec) * 1000000000LL +
+                           (ts_end.tv_nsec - ts_start.tv_nsec);
+    return ev;
+}
+
 size_t warehouse_add_batch(Warehouse *w, const package_id_t *ids, size_t count) {
     if (!w || !ids) return 0;
     size_t added = 0;
@@ -499,5 +584,16 @@ const char *arrival_result_str(ArrivalResult res) {
         case ARRIVAL_BRIDGED:        return "BRIDGED";
         case ARRIVAL_DUPLICATE:      return "DUPLICATE";
         default:                     return "UNKNOWN";
+    }
+}
+
+const char *removal_result_str(RemovalResult res) {
+    switch (res) {
+        case REMOVAL_NOT_FOUND:    return "NOT_FOUND";
+        case REMOVAL_NODE_DELETED: return "NODE_DELETED";
+        case REMOVAL_SHRUNK_LEFT:  return "SHRUNK_LEFT";
+        case REMOVAL_SHRUNK_RIGHT: return "SHRUNK_RIGHT";
+        case REMOVAL_SPLIT:        return "SPLIT";
+        default:                   return "UNKNOWN";
     }
 }
