@@ -1,11 +1,15 @@
 import React, { useState } from 'react';
 import { NavLink, Outlet, Link } from 'react-router-dom';
-import { Database, Menu, X } from 'lucide-react';
+import { Database, Menu, X, User, LogOut, LogIn } from 'lucide-react';
 import { useRealtimeSync } from '../hooks/useRealtimeSync';
+import { useAuth } from '../hooks/useAuth';
+import { AuthModal } from '../components/AuthModal';
 
 export const AppLayout: React.FC = () => {
   const { connectionState, onlineDevices, lastSyncTime, currentVersion } = useRealtimeSync();
+  const { user, signOut } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [authModalOpen, setAuthModalOpen] = useState(false);
 
   const getStatusBadge = () => {
     switch (connectionState) {
@@ -130,6 +134,29 @@ export const AppLayout: React.FC = () => {
               <span className="text-[10px] opacity-60 hidden md:inline">({onlineDevices} online)</span>
             </div>
 
+            {/* Auth / Account Button */}
+            {user ? (
+              <div className="hidden sm:flex items-center gap-1.5 text-xs font-mono bg-background border border-border px-2 py-1 rounded">
+                <span className="text-[11px] text-text font-semibold truncate max-w-[120px]">
+                  {user.email?.split('@')[0] || 'Operator'}
+                </span>
+                <button
+                  onClick={() => signOut()}
+                  className="text-muted hover:text-text p-0.5 rounded transition"
+                  title="Sign Out"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setAuthModalOpen(true)}
+                className="hidden sm:flex items-center gap-1 px-2.5 py-1 text-xs font-mono font-medium rounded bg-primary hover:bg-primary-dark text-white transition shadow-xs"
+              >
+                <LogIn className="w-3.5 h-3.5" /> Sign In
+              </button>
+            )}
+
             {/* Mobile Hamburger Toggle Button */}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -166,9 +193,33 @@ export const AppLayout: React.FC = () => {
                 {item.label}
               </NavLink>
             ))}
+
+            <div className="pt-2 border-t border-border flex items-center justify-between">
+              {user ? (
+                <div className="flex items-center justify-between w-full">
+                  <span className="text-[11px] text-muted truncate">{user.email}</span>
+                  <button
+                    onClick={() => { signOut(); setMobileMenuOpen(false); }}
+                    className="flex items-center gap-1 text-xs text-rose-600 font-semibold"
+                  >
+                    <LogOut className="w-3.5 h-3.5" /> Sign Out
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => { setAuthModalOpen(true); setMobileMenuOpen(false); }}
+                  className="w-full py-1.5 text-center bg-primary text-white rounded font-bold"
+                >
+                  Sign In / Register
+                </button>
+              )}
+            </div>
           </div>
         )}
       </header>
+
+      {/* Auth Modal */}
+      <AuthModal isOpen={authModalOpen} onClose={() => setAuthModalOpen(false)} />
 
       {/* Main Outlet */}
       <main className="flex-1">

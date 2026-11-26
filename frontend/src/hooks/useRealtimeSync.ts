@@ -39,6 +39,24 @@ export const useRealtimeSync = (onStateSync?: (intervals: Interval[]) => void) =
     packageId: number | null,
     metadata: Record<string, any> = {}
   ) => {
+    const localLog: ActivityLog = {
+      id: `local-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+      session_id: SHARED_SESSION_ID,
+      action,
+      package_id: packageId,
+      device_id: deviceId.current,
+      user_id: 'operator@warehouse.io',
+      metadata,
+      created_at: new Date().toISOString()
+    };
+    setActivityLogs((prev) => {
+      const updated = [localLog, ...prev.slice(0, 99)];
+      try {
+        localStorage.setItem('WH_LOCAL_ACTIVITY_LOGS', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+
     try {
       const { data, error } = await supabase
         .from('warehouse_activity_logs')
@@ -54,7 +72,7 @@ export const useRealtimeSync = (onStateSync?: (intervals: Interval[]) => void) =
         .single();
 
       if (!error && data) {
-        setActivityLogs((prev) => [data as ActivityLog, ...prev.slice(0, 99)]);
+        setActivityLogs((prev) => [data as ActivityLog, ...prev.filter(l => l.id !== localLog.id).slice(0, 99)]);
       }
     } catch (e) {
       console.warn('Realtime log note:', e);
@@ -84,9 +102,13 @@ export const useRealtimeSync = (onStateSync?: (intervals: Interval[]) => void) =
     }
   }, []);
 
-  // Fetch initial activity logs
+  // Fetch initial activity logs from local storage or cloud
   const fetchLogs = useCallback(async () => {
     try {
+      const local = localStorage.getItem('WH_LOCAL_ACTIVITY_LOGS');
+      if (local) {
+        setActivityLogs(JSON.parse(local));
+      }
       const { data } = await supabase
         .from('warehouse_activity_logs')
         .select('*')
@@ -94,7 +116,10 @@ export const useRealtimeSync = (onStateSync?: (intervals: Interval[]) => void) =
         .order('created_at', { ascending: false })
         .limit(50);
 
-      if (data) setActivityLogs(data as ActivityLog[]);
+      if (data && data.length > 0) {
+        setActivityLogs(data as ActivityLog[]);
+        localStorage.setItem('WH_LOCAL_ACTIVITY_LOGS', JSON.stringify(data));
+      }
     } catch (e) {
       // offline or table creation in progress
     }

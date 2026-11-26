@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Bug, Play, Pause, RotateCcw, ChevronLeft, ChevronRight, Zap, ArrowRight, ShieldCheck, Activity } from 'lucide-react';
 import { warehouseApi, type AVLNodeSnapshot } from '../services/warehouseApi';
 import { AvlTreeSvg } from '../components/AvlTreeSvg';
@@ -26,6 +26,15 @@ export const AlgorithmDebuggerPage: React.FC = () => {
     heightAfter: number;
     latencyNs: number;
   } | null>(null);
+
+  // Load active tree nodes on mount
+  useEffect(() => {
+    warehouseApi.getTree().then((tRes) => {
+      if (tRes.success && tRes.nodes) {
+        setTreeNodes(tRes.nodes);
+      }
+    });
+  }, []);
 
   const handleExecuteTrace = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();

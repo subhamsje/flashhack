@@ -434,7 +434,7 @@ async function persistWarehouseState(
         .eq('package_id', packageId);
     }
 
-    // 3. Record operation history
+    // 3. Record operation history and dual-write to warehouse_activity_logs for real-time audit trail
     await supabase
       .from('operation_history')
       .insert([{
@@ -445,6 +445,17 @@ async function persistWarehouseState(
         state_version: nextVersion,
         performed_by: 'operator',
         metadata: { ...metadata, total_packages: totalPackages, interval_count: intervals.length }
+      }]);
+
+    await supabase
+      .from('warehouse_activity_logs')
+      .insert([{
+        session_id: WAREHOUSE_ID,
+        action: operationType.startsWith('PACKAGE_REMOVED') ? 'PACKAGE_REMOVED' : (operationType === 'SESSION_RESET' ? 'SESSION_RESET' : (operationType === 'BATCH_IMPORT' ? 'BATCH_IMPORT' : 'PACKAGE_ADDED')),
+        package_id: packageId,
+        device_id: typeof window !== 'undefined' ? (localStorage.getItem('WH_DEVICE_ID') || 'Desktop-Node') : 'Desktop-Node',
+        user_id: 'operator@warehouse.io',
+        metadata: { ...metadata, total_packages: totalPackages, state_version: nextVersion }
       }]);
   } catch (err) {
     console.warn('Cloud persistence note:', err);
