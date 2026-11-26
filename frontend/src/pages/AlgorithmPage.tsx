@@ -1,7 +1,10 @@
-import React from 'react';
-import { BookOpen, GitBranch, Cpu, Check, Layers } from 'lucide-react';
+import React, { useState } from 'react';
+import { GitBranch, ShieldCheck, Zap } from 'lucide-react';
+import { AvlRotationDemo } from '../components/AvlRotationDemo';
 
 export const AlgorithmPage: React.FC = () => {
+  const [activeCase, setActiveCase] = useState<1 | 2 | 3 | 4>(4);
+
   return (
     <div className="space-y-12 max-w-4xl mx-auto py-8 px-6">
       {/* Header */}
@@ -13,22 +16,54 @@ export const AlgorithmPage: React.FC = () => {
         </p>
       </div>
 
-      {/* 1. Why AVL Tree */}
-      <section className="space-y-3">
-        <h2 className="font-serif text-xl font-semibold text-text">1. Why an AVL Tree?</h2>
-        <p className="text-sm text-muted leading-relaxed">
-          The problem domain is <strong>Balanced Searching and Ordered Indexing</strong>. An AVL (Adelson-Velsky and Landis) tree is a strictly height-balanced binary search tree where the heights of the two child subtrees of any node differ by at most one:
-        </p>
-        <div className="p-3 bg-surface border border-border rounded font-mono text-xs text-text text-center">
-          |height(left) - height(right)| &le; 1
+      {/* 1. Why AVL Tree: Unbalanced BST vs AVL */}
+      <section className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="font-serif text-xl font-semibold text-text">1. Why an AVL Tree?</h2>
+          <span className="text-xs font-mono text-primary font-bold">Strict |height(L) - height(R)| &le; 1</span>
         </div>
         <p className="text-sm text-muted leading-relaxed">
-          This strict invariant guarantees that tree height is bounded by approximately 1.44 &times; log2(k). Therefore, finding containing intervals or immediate predecessors and successors executes in guaranteed O(log k) worst-case time without risk of linear degradation.
+          The problem domain is <strong>Balanced Searching and Ordered Indexing</strong>. An AVL (Adelson-Velsky and Landis) tree is a strictly height-balanced binary search tree. Contrast the degenerate linear degradation of a standard naive BST with the strictly bounded AVL tree:
         </p>
+
+        <div className="grid md:grid-cols-2 gap-4 font-mono text-xs">
+          {/* Degenerate BST */}
+          <div className="p-4 bg-surface border border-missing/30 rounded-xl space-y-2">
+            <span className="text-missing font-bold block flex items-center gap-1.5">
+              Naive BST (Sequential Arrivals)
+            </span>
+            <p className="text-muted leading-relaxed text-[11px]">
+              Sequential arrivals [1, 2, 3, 4] degenerate into a linked list with worst-case search time of:
+            </p>
+            <div className="p-2 bg-background border border-border rounded text-center font-bold text-missing">
+              Worst-case Time: O(k)
+            </div>
+            <p className="text-[10px] text-muted">A warehouse under high volume experiences catastrophic latency spikes.</p>
+          </div>
+
+          {/* Balanced AVL */}
+          <div className="p-4 bg-surface border border-primary/30 rounded-xl space-y-2">
+            <span className="text-received font-bold block flex items-center gap-1.5">
+              Balanced AVL Tree (Flashhack C Engine)
+            </span>
+            <p className="text-muted leading-relaxed text-[11px]">
+              Every insertion and deletion executes O(1) rotations, maintaining maximum height:
+            </p>
+            <div className="p-2 bg-background border border-border rounded text-center font-bold text-received">
+              Guaranteed Height: &le; 1.44 &times; log2(k) &rarr; O(log k)
+            </div>
+            <p className="text-[10px] text-muted">Predictable sub-millisecond search and merge regardless of arrival ordering.</p>
+          </div>
+        </div>
       </section>
 
-      {/* 2. Why Intervals Instead of Individual IDs? */}
-      <section className="space-y-3">
+      {/* 2. Interactive AVL Rotations */}
+      <section className="space-y-4">
+        <AvlRotationDemo />
+      </section>
+
+      {/* 3. Why Intervals Instead of Individual IDs? */}
+      <section className="space-y-4">
         <h2 className="font-serif text-xl font-semibold text-text">2. Why Store Intervals Instead of Individual IDs?</h2>
         <p className="text-sm text-muted leading-relaxed">
           Package IDs are non-negative and can range from 0 up to 10^9. Allocating a direct array or hash map for 10^9 values is extremely inefficient:
@@ -48,30 +83,78 @@ export const AlgorithmPage: React.FC = () => {
         </p>
       </section>
 
-      {/* 3. Four Interval Insertion Cases */}
+      {/* 4. Four Interval Insertion Cases Interactive Selector */}
       <section className="space-y-4">
-        <h2 className="font-serif text-xl font-semibold text-text">3. The Four Insertion Cases</h2>
-        <div className="space-y-3 font-mono text-xs">
-          <div className="p-4 bg-surface border border-border rounded-lg space-y-1">
-            <div className="font-bold text-text">Case 1: Isolated ID (Creation)</div>
-            <div className="text-muted">No adjacent predecessor or successor exists. A new node [x, x] is inserted into the AVL tree.</div>
+        <div className="flex items-center justify-between">
+          <h2 className="font-serif text-xl font-semibold text-text">3. The Four Insertion Cases</h2>
+          <div className="flex gap-1">
+            {([1, 2, 3, 4] as (1 | 2 | 3 | 4)[]).map((c) => (
+              <button
+                key={c}
+                onClick={() => setActiveCase(c)}
+                className={`px-2.5 py-1 rounded text-xs font-mono font-bold transition ${
+                  activeCase === c ? 'bg-primary text-white' : 'bg-surface border border-border text-muted hover:text-text'
+                }`}
+              >
+                Case {c}
+              </button>
+            ))}
           </div>
-          <div className="p-4 bg-surface border border-border rounded-lg space-y-1">
-            <div className="font-bold text-text">Case 2: Extend Predecessor (Right Extension)</div>
-            <div className="text-muted">Incoming ID x satisfies pred.end + 1 == x. Updates pred.end = x. Tree structure remains unchanged.</div>
-          </div>
-          <div className="p-4 bg-surface border border-border rounded-lg space-y-1">
-            <div className="font-bold text-text">Case 3: Extend Successor (Left Extension)</div>
-            <div className="text-muted">Incoming ID x satisfies succ.start - 1 == x. Re-inserts interval as [x, succ.end] maintaining BST ordering.</div>
-          </div>
-          <div className="p-4 bg-surface border border-border rounded-lg space-y-1">
-            <div className="font-bold text-primary">Case 4: Bridge Merge (Fusion)</div>
-            <div className="text-muted">ID x satisfies pred.end + 1 == x AND succ.start - 1 == x. Extends predecessor to succ.end, removes successor node from tree, and executes AVL rebalancing. Memory is reclaimed immediately.</div>
-          </div>
+        </div>
+
+        {/* Selected Case Card */}
+        <div className="p-6 bg-surface border border-border rounded-xl space-y-3 font-mono text-xs">
+          {activeCase === 1 && (
+            <div className="space-y-2">
+              <span className="font-bold text-text text-sm">Case 1: Isolated ID (Creation)</span>
+              <p className="text-muted leading-relaxed">
+                Neither pred nor succ is adjacent (pred.end + 1 &lt; x and x + 1 &lt; succ.start).
+              </p>
+              <div className="p-3 bg-background border border-border rounded text-center">
+                Before: <span className="text-received font-bold">[1, 3]</span> &nbsp; ... &nbsp; <span className="text-received font-bold">[10, 15]</span> &nbsp; (Incoming: <span className="text-primary font-bold">6</span>) &rarr; After: <span className="text-received font-bold">[1, 3]</span>, <span className="text-accent font-bold">[6, 6]</span>, <span className="text-received font-bold">[10, 15]</span>
+              </div>
+            </div>
+          )}
+
+          {activeCase === 2 && (
+            <div className="space-y-2">
+              <span className="font-bold text-text text-sm">Case 2: Extend Predecessor (Right Extension)</span>
+              <p className="text-muted leading-relaxed">
+                Incoming ID x satisfies pred.end + 1 == x, while x + 1 &lt; succ.start.
+              </p>
+              <div className="p-3 bg-background border border-border rounded text-center">
+                Before: <span className="text-received font-bold">[1, 3]</span> &nbsp; (Incoming: <span className="text-primary font-bold">4</span>) &rarr; After: <span className="text-received font-bold">[1, 4]</span>
+              </div>
+            </div>
+          )}
+
+          {activeCase === 3 && (
+            <div className="space-y-2">
+              <span className="font-bold text-text text-sm">Case 3: Extend Successor (Left Extension)</span>
+              <p className="text-muted leading-relaxed">
+                Incoming ID x satisfies succ.start - 1 == x, while pred.end + 1 &lt; x.
+              </p>
+              <div className="p-3 bg-background border border-border rounded text-center">
+                Before: <span className="text-received font-bold">[6, 7]</span> &nbsp; (Incoming: <span className="text-primary font-bold">5</span>) &rarr; After: <span className="text-received font-bold">[5, 7]</span>
+              </div>
+            </div>
+          )}
+
+          {activeCase === 4 && (
+            <div className="space-y-2">
+              <span className="font-bold text-primary text-sm">Case 4: Bridge Merge (Fusion)</span>
+              <p className="text-muted leading-relaxed">
+                ID x satisfies pred.end + 1 == x AND succ.start - 1 == x. Extends predecessor to succ.end and removes successor node from tree in O(log k).
+              </p>
+              <div className="p-3 bg-background border border-border rounded text-center">
+                Before: <span className="text-received font-bold">[1, 3]</span> and <span className="text-received font-bold">[5, 7]</span> &nbsp; (Incoming: <span className="text-primary font-bold">4</span>) &rarr; After: <span className="text-received font-bold">[1, 7]</span> (1 node reclaimed)
+              </div>
+            </div>
+          )}
         </div>
       </section>
 
-      {/* 4. Complexity Table */}
+      {/* 5. Algorithmic Complexity Table */}
       <section className="space-y-4">
         <h2 className="font-serif text-xl font-semibold text-text">4. Algorithmic Complexity</h2>
         <div className="overflow-x-auto bg-surface border border-border rounded-xl shadow-sm">
