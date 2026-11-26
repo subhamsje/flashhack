@@ -1,4 +1,4 @@
-bin/
+warehouse
+test_warehouse
 *.o
-*.dSYM/
 .DS_Store
