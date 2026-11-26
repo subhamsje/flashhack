@@ -5,7 +5,7 @@ import { useAuth } from '../hooks/useAuth';
 import { isSupabaseConfigured } from '../services/supabase';
 
 export const AppLayout: React.FC = () => {
-  const { user, signOut, signIn, signUp, isConfigured } = useAuth();
+  const { user, signOut, signIn, signUp, enterAsOperator, isConfigured } = useAuth();
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
@@ -265,6 +265,17 @@ export const AppLayout: React.FC = () => {
                 className="w-full py-2 bg-primary hover:bg-primary-dark text-white rounded font-medium transition"
               >
                 {isSignUp ? 'Register Account' : 'Sign In'}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  enterAsOperator();
+                  setShowAuthModal(false);
+                }}
+                className="w-full py-2 bg-background border border-border hover:bg-surface text-text rounded font-medium transition flex items-center justify-center gap-1.5"
+              >
+                <ShieldCheck className="w-4 h-4 text-primary" /> Continue as Verified Operator
               </button>
             </form>
 
