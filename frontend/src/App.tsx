@@ -23,6 +23,7 @@ export const App: React.FC = () => {
 
             {/* Page 3: Missing Package Intelligence & Range Analysis */}
             <Route path="/range-analysis" element={<RangeAnalysisPage />} />
+            <Route path="/range" element={<Navigate to="/range-analysis" replace />} />
 
             {/* Page 4: Activity Log & Time Travel Replay */}
             <Route path="/activity-log" element={<ActivityLogPage />} />

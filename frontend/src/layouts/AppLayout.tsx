@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { NavLink, Outlet, Link } from 'react-router-dom';
-import { Database } from 'lucide-react';
+import { Database, Menu, X } from 'lucide-react';
 import { useRealtimeSync } from '../hooks/useRealtimeSync';
 
 export const AppLayout: React.FC = () => {
   const { connectionState, onlineDevices, lastSyncTime, currentVersion } = useRealtimeSync();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const getStatusBadge = () => {
     switch (connectionState) {
@@ -117,8 +118,8 @@ export const AppLayout: React.FC = () => {
             </NavLink>
           </nav>
 
-          {/* Right Controls: Minimalist Multi-Device Cloud Status */}
-          <div className="flex items-center gap-3">
+          {/* Right Controls: Minimalist Multi-Device Cloud Status & Mobile Menu Toggle */}
+          <div className="flex items-center gap-2 sm:gap-3">
             <div
               className={`flex items-center gap-2 px-2.5 py-1 text-xs font-mono rounded border shadow-sm transition ${status.bg}`}
               title={`Warehouse: Main Distribution\nState Version: v${currentVersion}\nLast Synced: ${lastSyncTime}\nOnline Devices: ${onlineDevices}`}
@@ -128,8 +129,45 @@ export const AppLayout: React.FC = () => {
               <span className="text-[10px] opacity-75 hidden sm:inline">v{currentVersion}</span>
               <span className="text-[10px] opacity-60 hidden md:inline">({onlineDevices} online)</span>
             </div>
+
+            {/* Mobile Hamburger Toggle Button */}
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="md:hidden p-2 text-text hover:bg-background rounded border border-border"
+              aria-label="Toggle navigation menu"
+            >
+              {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+            </button>
           </div>
         </div>
+
+        {/* Mobile Navigation Dropdown Drawer */}
+        {mobileMenuOpen && (
+          <div className="md:hidden border-t border-border bg-surface px-6 py-4 space-y-3 font-mono text-xs shadow-lg animate-in fade-in duration-150">
+            {[
+              { to: '/', label: 'Overview', exact: true },
+              { to: '/app', label: 'Live Arrival Index' },
+              { to: '/range-analysis', label: 'Missing Intelligence' },
+              { to: '/activity-log', label: 'Activity & History' },
+              { to: '/debugger', label: 'Algorithm Debugger' },
+              { to: '/algorithm', label: 'About Algorithm' }
+            ].map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                end={item.exact}
+                onClick={() => setMobileMenuOpen(false)}
+                className={({ isActive }) =>
+                  `block py-1.5 px-2 rounded transition ${
+                    isActive ? 'bg-primary/10 text-primary font-bold' : 'text-muted hover:text-text hover:bg-background'
+                  }`
+                }
+              >
+                {item.label}
+              </NavLink>
+            ))}
+          </div>
+        )}
       </header>
 
       {/* Main Outlet */}

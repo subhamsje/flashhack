@@ -6,14 +6,23 @@ export const RangeAnalysisPage: React.FC = () => {
   const [startInput, setStartInput] = useState('1');
   const [endInput, setEndInput] = useState('100');
   const [data, setData] = useState<RangeAnalysisResponse | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [gapSort, setGapSort] = useState<'LARGEST' | 'SMALLEST' | 'LOWEST_START'>('LARGEST');
 
   const handleAnalyze = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    setErrorMsg(null);
     const s = parseInt(startInput);
     const end = parseInt(endInput);
-    if (isNaN(s) || isNaN(end) || s > end || s < 0) return;
+    if (isNaN(s) || isNaN(end) || s < 0) {
+      setErrorMsg('Please enter valid non-negative integer boundaries.');
+      return;
+    }
+    if (s > end) {
+      setErrorMsg(`Invalid range: Start ID (${s}) cannot be greater than End ID (${end}).`);
+      return;
+    }
 
     setLoading(true);
     const res = await warehouseApi.analyzeRange(s, end);
@@ -82,6 +91,13 @@ export const RangeAnalysisPage: React.FC = () => {
             Compute Intelligence <ArrowRight className="w-4 h-4" />
           </button>
         </form>
+
+        {errorMsg && (
+          <div className="mt-4 p-3 bg-missing/15 border border-missing/40 rounded-lg text-xs font-mono text-missing flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 shrink-0" />
+            <span>{errorMsg}</span>
+          </div>
+        )}
       </div>
 
       {/* Evaluation Results Card */}
@@ -193,7 +209,7 @@ export const RangeAnalysisPage: React.FC = () => {
                         </div>
                       </div>
                       <div className="text-right">
-                        <span className="font-bold text-missing block">-{size.toLocaleString()} IDs</span>
+                        <span className="font-bold text-missing block">{size.toLocaleString()} IDs</span>
                         <span className="text-[10px] text-muted">
                           {((size / data.total_span) * 100).toFixed(1)}% of window
                         </span>

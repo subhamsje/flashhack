@@ -71,7 +71,7 @@ export const AlgorithmPage: React.FC = () => {
         <div className="grid sm:grid-cols-2 gap-4 font-mono text-xs">
           <div className="p-4 bg-surface border border-border rounded-lg">
             <span className="text-missing font-bold block mb-1">Flat Array Approach:</span>
-            <span>10^9 &times; 4 bytes &approx; <strong>4.0 GB</strong> of memory.</span>
+            <span>10^9 &times; 4 bytes &asymp; <strong>4.0 GB</strong> of memory.</span>
           </div>
           <div className="p-4 bg-surface border border-border rounded-lg">
             <span className="text-received font-bold block mb-1">AVL Interval Approach:</span>

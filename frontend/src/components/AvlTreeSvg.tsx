@@ -330,6 +330,15 @@ export const AvlTreeSvg: React.FC<AvlTreeSvgProps> = ({
             const isSelected = selectedNode?.node_id === snap.node_id;
             const isRecentlyTouched = recentlyTouchedNodeIds.includes(snap.node_id);
 
+            const formatVal = (v: number) => {
+              if (v >= 1000000000) return `${(v / 1000000000).toFixed(1)}B`;
+              if (v >= 1000000) return `${(v / 1000000).toFixed(1)}M`;
+              if (v >= 1000) return `${(v / 1000).toFixed(1)}k`;
+              return String(v);
+            };
+            const labelStr = snap.start === snap.end ? `[${formatVal(snap.start)}]` : `[${formatVal(snap.start)}━${formatVal(snap.end)}]`;
+            const boxWidth = Math.max(92, Math.min(130, labelStr.length * 8 + 24));
+
             return (
               <g
                 key={`node-${snap.node_id}`}
@@ -339,9 +348,9 @@ export const AvlTreeSvg: React.FC<AvlTreeSvgProps> = ({
               >
                 {/* Node Pill Background */}
                 <motion.rect
-                  x="-46"
+                  x={-boxWidth / 2}
                   y="-22"
-                  width="92"
+                  width={boxWidth}
                   height="44"
                   rx="8"
                   layout
@@ -366,7 +375,7 @@ export const AvlTreeSvg: React.FC<AvlTreeSvgProps> = ({
                     isHighlighted ? 'fill-white' : 'fill-text'
                   }`}
                 >
-                  [{snap.start}━{snap.end}]
+                  {labelStr}
                 </text>
 
                 {/* Metadata: Height and Balance Factor */}

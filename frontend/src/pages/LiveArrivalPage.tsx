@@ -125,12 +125,12 @@ export const LiveArrivalPage: React.FC = () => {
     setStepExplanation(steps);
     setPackageIdInput('');
     await refreshAll();
-    await logActivity(
+    setLoading(false);
+    logActivity(
       res.operation === 'DUPLICATE' ? 'DUPLICATE_IGNORED' : 'PACKAGE_ADDED',
       id,
       { operation: res.operation, execution_ns: res.execution_time_ns }
-    );
-    setLoading(false);
+    ).catch(() => {});
   };
 
   const handleRemovePackage = async (e: React.FormEvent) => {
@@ -169,8 +169,8 @@ export const LiveArrivalPage: React.FC = () => {
     setStepExplanation(steps);
     setRemoveIdInput('');
     await refreshAll();
-    await logActivity('PACKAGE_REMOVED', id, { operation: res.operation, execution_ns: res.execution_time_ns });
     setLoading(false);
+    logActivity('PACKAGE_REMOVED', id, { operation: res.operation, execution_ns: res.execution_time_ns }).catch(() => {});
   };
 
   const handleBatch = async (e: React.FormEvent) => {
@@ -293,8 +293,8 @@ export const LiveArrivalPage: React.FC = () => {
                     setLoading(true);
                     await warehouseApi.addBatch(p.ids);
                     await refreshAll();
-                    await logActivity('BATCH_IMPORT', null, { count: p.ids.length, ids: p.ids });
                     setLoading(false);
+                    logActivity('BATCH_IMPORT', null, { count: p.ids.length, ids: p.ids }).catch(() => {});
                   }}
                   className="px-2 py-1 text-xs font-mono bg-background hover:bg-border/60 text-text rounded border border-border transition"
                 >
@@ -421,7 +421,7 @@ export const LiveArrivalPage: React.FC = () => {
                   >
                     <span>[{g.start} ━ {g.end}]</span>
                     <span className="text-[10px] px-1.5 py-0.2 bg-missing/20 rounded font-sans">
-                      -{g.end - g.start + 1}
+                      {g.end - g.start + 1}
                     </span>
                   </div>
                 ))
