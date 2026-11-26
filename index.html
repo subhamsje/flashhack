@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Warehouse Arrival Tracker</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background-color: #0f172a; color: #f8fafc; padding: 16px; min-height: 100vh; }
+    .header { padding: 16px 0; border-bottom: 1px solid #334155; margin-bottom: 16px; }
+    .header h1 { font-size: 22px; color: #38bdf8; font-weight: 700; }
+    .header p { font-size: 13px; color: #94a3b8; margin-top: 4px; }
+    .card { background-color: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+    .card-title { font-size: 15px; font-weight: 600; margin-bottom: 12px; color: #f1f5f9; }
+    .input-row { display: flex; gap: 8px; margin-bottom: 10px; }
+    input { flex: 1; background-color: #0f172a; border: 1px solid #334155; color: #fff; padding: 12px; border-radius: 8px; font-size: 16px; outline: none; }
+    input:focus { border-color: #38bdf8; }
+    button { background-color: #0284c7; color: #fff; border: none; padding: 12px 18px; border-radius: 8px; font-weight: 600; cursor: pointer; }
+    button:active { background-color: #0369a1; }
+    .btn-outline { background: transparent; border: 1px solid #0284c7; color: #38bdf8; padding: 6px 12px; font-size: 12px; }
+    .quick-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .badge-container { display: flex; flex-wrap: wrap; gap: 8px; min-height: 28px; align-items: center; }
+    .badge-success { background: #064e3b; border: 1px solid #059669; color: #34d399; padding: 6px 12px; border-radius: 6px; font-weight: 700; font-size: 14px; }
+    .badge-warning { background: #451a03; border: 1px solid #d97706; color: #fbbf24; padding: 6px 12px; border-radius: 6px; font-weight: 700; font-size: 14px; }
+    .log-list { max-height: 150px; overflow-y: auto; font-size: 13px; color: #cbd5e1; }
+    .log-item { padding: 4px 0; border-bottom: 1px solid #334155; display: flex; gap: 6px; }
+    .log-bullet { color: #38bdf8; }
+    .status-banner { border-left: 4px solid #38bdf8; padding: 10px 12px; background: #1e293b; border-radius: 6px; margin-bottom: 16px; font-size: 13px; color: #e2e8f0; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>Warehouse Arrival Tracker</h1>
+    <p>Live Incremental Interval Index & Missing Gap Monitor</p>
+  </div>
+
+  <div class="status-banner" id="status-banner">Ready to track arrivals</div>
+
+  <div class="card">
+    <div class="card-title">Log Incoming Package</div>
+    <div class="input-row">
+      <input type="text" id="pkg-input" placeholder="e.g. 4 or 1, 3, 7, 2, 6">
+      <button onclick="handleAdd()">Add</button>
+    </div>
+    <div class="quick-actions">
+      <button class="btn-outline" onclick="handleAddNum(4)">+ Bridge (4)</button>
+      <button class="btn-outline" onclick="handleAddNum(5)">+ Bridge (5)</button>
+      <button class="btn-outline" onclick="loadDemo()">Load [1, 3, 7, 2, 6]</button>
+      <button class="btn-outline" onclick="resetAll()" style="border-color: #ef4444; color: #f87171;">Clear</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Received Consecutive Ranges</div>
+    <div class="badge-container" id="intervals-container">
+      <span style="color: #64748b; font-style: italic;">No packages received yet</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Check Missing Gaps in Range</div>
+    <div class="input-row">
+      <input type="number" id="gap-min" value="1" style="max-width: 90px;" placeholder="Min">
+      <span style="align-self: center; color: #94a3b8;">to</span>
+      <input type="number" id="gap-max" value="10" style="max-width: 90px;" placeholder="Max">
+      <button onclick="renderGaps()" style="background-color: #334155;">Find</button>
+    </div>
+    <div class="badge-container" id="gaps-container"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Recent Activity Log</div>
+    <div class="log-list" id="log-list">
+      <div style="color: #64748b; font-style: italic;">Activity log will appear here</div>
+    </div>
+  </div>
+
+  <script>
+    // Live Interval Index Implementation
+    class LiveArrivalIndex {
+      constructor() { this.intervals = []; }
+
+      add(id) {
+        id = Number(id);
+        if (isNaN(id) || id < 0) return { success: false, action: 'INVALID' };
+
+        const n = this.intervals.length;
+        if (n === 0) {
+          this.intervals.push([id, id]);
+          return { success: true, action: 'CREATED' };
+        }
+
+        let low = 0, high = n - 1, idx = n;
+        while (low <= high) {
+          const mid = Math.floor((low + high) / 2);
+          if (this.intervals[mid][0] > id) { idx = mid; high = mid - 1; }
+          else { low = mid + 1; }
+        }
+
+        const leftIdx = idx - 1;
+        const rightIdx = idx;
+
+        if (leftIdx >= 0 && id >= this.intervals[leftIdx][0] && id <= this.intervals[leftIdx][1]) {
+          return { success: false, action: 'DUPLICATE' };
+        }
+
+        const canMergeLeft = leftIdx >= 0 && this.intervals[leftIdx][1] + 1 === id;
+        const canMergeRight = rightIdx < n && id + 1 === this.intervals[rightIdx][0];
+
+        if (canMergeLeft && canMergeRight) {
+          this.intervals[leftIdx][1] = this.intervals[rightIdx][1];
+          this.intervals.splice(rightIdx, 1);
+          return { success: true, action: 'BRIDGED' };
+        } else if (canMergeLeft) {
+          this.intervals[leftIdx][1] = id;
+          return { success: true, action: 'EXTENDED' };
+        } else if (canMergeRight) {
+          this.intervals[rightIdx][0] = id;
+          return { success: true, action: 'EXTENDED' };
+        } else {
+          this.intervals.splice(idx, 0, [id, id]);
+          return { success: true, action: 'CREATED' };
+        }
+      }
+
+      getMissingRanges(min, max) {
+        min = Number(min); max = Number(max);
+        const gaps = [];
+        let curr = min;
+        for (const [s, e] of this.intervals) {
+          if (e < min) continue;
+          if (s > max) break;
+          const clippedStart = Math.max(s, min);
+          const clippedEnd = Math.min(e, max);
+          if (curr < clippedStart) gaps.push([curr, clippedStart - 1]);
+          curr = clippedEnd + 1;
+        }
+        if (curr <= max) gaps.push([curr, max]);
+        return gaps;
+      }
+    }
+
+    const index = new LiveArrivalIndex();
+
+    function log(msg) {
+      document.getElementById('status-banner').innerText = msg;
+      const logList = document.getElementById('log-list');
+      const item = document.createElement('div');
+      item.className = 'log-item';
+      item.innerHTML = `<span class="log-bullet">•</span> <span>${msg}</span>`;
+      logList.prepend(item);
+    }
+
+    function renderIntervals() {
+      const container = document.getElementById('intervals-container');
+      if (index.intervals.length === 0) {
+        container.innerHTML = '<span style="color: #64748b; font-style: italic;">No packages received yet</span>';
+        return;
+      }
+      container.innerHTML = index.intervals.map(([s, e]) => 
+        `<div class="badge-success">${s === e ? `[ ${s} ]` : `[ ${s} - ${e} ]`}</div>`
+      ).join('');
+    }
+
+    function renderGaps() {
+      const min = document.getElementById('gap-min').value;
+      const max = document.getElementById('gap-max').value;
+      const gaps = index.getMissingRanges(min, max);
+      const container = document.getElementById('gaps-container');
+      if (gaps.length === 0) {
+        container.innerHTML = '<span style="color: #34d399;">✓ No missing packages in this range!</span>';
+        return;
+      }
+      container.innerHTML = gaps.map(([s, e]) => 
+        `<div class="badge-warning">${s === e ? `Missing: ${s}` : `Missing: ${s} - ${e}`}</div>`
+      ).join('');
+    }
+
+    function handleAddNum(num) {
+      const res = index.add(num);
+      log(`Package #${num}: ${res.action}`);
+      renderIntervals();
+      renderGaps();
+    }
+
+    function handleAdd() {
+      const input = document.getElementById('pkg-input');
+      const val = input.value.trim();
+      if (!val) return;
+      const ids = val.split(/[,\s]+/).filter(Boolean);
+      ids.forEach(x => {
+        const n = parseInt(x, 10);
+        if (!isNaN(n)) handleAddNum(n);
+      });
+      input.value = '';
+    }
+
+    function loadDemo() {
+      [1, 3, 7, 2, 6].forEach(x => handleAddNum(x));
+      document.getElementById('gap-min').value = 1;
+      document.getElementById('gap-max').value = 7;
+      renderGaps();
+    }
+
+    function resetAll() {
+      index.intervals = [];
+      document.getElementById('log-list').innerHTML = '';
+      log('Cleared all intervals');
+      renderIntervals();
+      renderGaps();
+    }
+  </script>
+</body>
+</html>
