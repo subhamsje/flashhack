@@ -5,27 +5,31 @@ export default {
   theme: {
     extend: {
       colors: {
-        background: '#F7F7F2',
-        surface: '#FFFFFF',
+        background: '#0D1117',
+        surface: '#161B22',
         primary: {
-          DEFAULT: '#246B5A',
-          light: '#DDEBE4',
-          dark: '#1A4F42',
+          DEFAULT: '#2EA043',
+          light: '#3FB950',
+          dark: '#238636',
         },
         accent: {
-          DEFAULT: '#E4A75B',
+          DEFAULT: '#D29922',
         },
-        text: '#26332F',
-        muted: '#77827C',
-        border: '#E2E5DF',
-        received: '#38866C',
-        missing: '#D99A54',
+        text: '#F0F6FC',
+        muted: '#8B949E',
+        border: '#30363D',
+        received: '#3FB950',
+        missing: '#F0883E',
       },
       fontFamily: {
         serif: ['Newsreader', 'Georgia', 'serif'],
         sans: ['Inter', 'system-ui', 'sans-serif'],
         mono: ['JetBrains Mono', 'Menlo', 'monospace'],
       },
+      boxShadow: {
+        'glow-primary': '0 0 20px -3px rgba(46, 160, 67, 0.35)',
+        'glow-accent': '0 0 20px -3px rgba(210, 153, 34, 0.35)',
+      }
     },
   },
   plugins: [],
