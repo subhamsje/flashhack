@@ -2,136 +2,387 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Warehouse Arrival Tracker</title>
   <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#0f172a">
+  <meta name="theme-color" content="#090d16">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-    body { background-color: #0f172a; color: #f8fafc; padding: 16px; min-height: 100vh; }
-    .header { padding: 16px 0; border-bottom: 1px solid #334155; margin-bottom: 16px; }
-    .header h1 { font-size: 22px; color: #38bdf8; font-weight: 700; }
-    .header p { font-size: 13px; color: #94a3b8; margin-top: 4px; }
-    .card { background-color: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 16px; margin-bottom: 16px; }
-    .card-title { font-size: 15px; font-weight: 600; margin-bottom: 12px; color: #f1f5f9; }
-    .input-row { display: flex; gap: 8px; margin-bottom: 10px; }
-    input { flex: 1; background-color: #0f172a; border: 1px solid #334155; color: #fff; padding: 12px; border-radius: 8px; font-size: 16px; outline: none; }
-    input:focus { border-color: #38bdf8; }
-    button { background-color: #0284c7; color: #fff; border: none; padding: 12px 18px; border-radius: 8px; font-weight: 600; cursor: pointer; }
-    button:active { background-color: #0369a1; }
-    .btn-outline { background: transparent; border: 1px solid #0284c7; color: #38bdf8; padding: 6px 12px; font-size: 12px; }
-    .quick-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-    .badge-container { display: flex; flex-wrap: wrap; gap: 8px; min-height: 28px; align-items: center; }
-    .badge-success { background: #064e3b; border: 1px solid #059669; color: #34d399; padding: 6px 12px; border-radius: 6px; font-weight: 700; font-size: 14px; }
-    .badge-warning { background: #451a03; border: 1px solid #d97706; color: #fbbf24; padding: 6px 12px; border-radius: 6px; font-weight: 700; font-size: 14px; }
-    .log-list { max-height: 150px; overflow-y: auto; font-size: 13px; color: #cbd5e1; }
-    .log-item { padding: 4px 0; border-bottom: 1px solid #334155; display: flex; gap: 6px; }
-    .log-bullet { color: #38bdf8; }
-    .status-banner { border-left: 4px solid #38bdf8; padding: 10px 12px; background: #1e293b; border-radius: 6px; margin-bottom: 16px; font-size: 13px; color: #e2e8f0; }
+    :root {
+      --bg: #090d16;
+      --surface: #111827;
+      --surface-border: rgba(255, 255, 255, 0.08);
+      --primary: #38bdf8;
+      --primary-gradient: linear-gradient(135deg, #0284c7, #38bdf8);
+      --emerald: #10b981;
+      --emerald-bg: rgba(16, 185, 129, 0.12);
+      --amber: #f59e0b;
+      --amber-bg: rgba(245, 158, 11, 0.12);
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      min-height: 100vh;
+      padding: env(safe-area-inset-top, 20px) 16px env(safe-area-inset-bottom, 24px);
+      max-width: 520px;
+      margin: 0 auto;
+    }
+
+    /* Modern Top Bar */
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 0 20px;
+    }
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .brand-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      background: var(--primary-gradient);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 14px rgba(2, 132, 199, 0.35);
+      font-size: 20px;
+    }
+    .brand-title { font-size: 18px; font-weight: 800; letter-spacing: -0.4px; color: #fff; }
+    .brand-sub { font-size: 12px; color: var(--text-muted); font-weight: 500; }
+    
+    .settings-btn {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--surface-border);
+      color: var(--text-muted);
+      border-radius: 12px;
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      cursor: pointer;
+    }
+    .settings-btn:active { transform: scale(0.95); }
+
+    /* Live Event Pill */
+    .live-pill {
+      background: rgba(56, 189, 248, 0.08);
+      border: 1px solid rgba(56, 189, 248, 0.2);
+      border-radius: 100px;
+      padding: 8px 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 20px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #bae6fd;
+    }
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #38bdf8;
+      box-shadow: 0 0 10px #38bdf8;
+      animation: pulse 1.6s infinite;
+    }
+    @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(1.2); } }
+
+    /* Glass Cards */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      border-radius: 18px;
+      padding: 20px;
+      margin-bottom: 16px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+    }
+    .card-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+    .card-title {
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+
+    /* Input & Add Row */
+    .input-group {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .main-input {
+      flex: 1;
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid var(--surface-border);
+      border-radius: 14px;
+      padding: 14px 16px;
+      color: #fff;
+      font-size: 16px;
+      font-weight: 600;
+      outline: none;
+      transition: border 0.2s;
+    }
+    .main-input:focus { border-color: var(--primary); }
+    .main-input::placeholder { color: #475569; font-weight: 500; font-size: 14px; }
+    
+    .primary-btn {
+      background: var(--primary-gradient);
+      border: none;
+      color: #fff;
+      border-radius: 14px;
+      padding: 0 24px;
+      font-weight: 700;
+      font-size: 15px;
+      cursor: pointer;
+      box-shadow: 0 4px 14px rgba(2, 132, 199, 0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .primary-btn:active { transform: scale(0.96); }
+
+    .quick-chips {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .chip {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--surface-border);
+      color: #cbd5e1;
+      padding: 8px 14px;
+      border-radius: 10px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .chip:active { background: rgba(56, 189, 248, 0.15); border-color: var(--primary); color: var(--primary); }
+
+    /* Segment Badges */
+    .badge-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      min-height: 40px;
+      align-items: center;
+    }
+    .range-badge {
+      background: var(--emerald-bg);
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      color: #34d399;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 14px;
+      font-weight: 700;
+      padding: 10px 16px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      animation: popIn 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    .gap-badge {
+      background: var(--amber-bg);
+      border: 1px solid rgba(245, 158, 11, 0.35);
+      color: #fbbf24;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 14px;
+      font-weight: 700;
+      padding: 10px 16px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      animation: popIn 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    @keyframes popIn { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
+
+    /* Range Query Row */
+    .query-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    .small-input {
+      flex: 1;
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid var(--surface-border);
+      border-radius: 12px;
+      padding: 12px;
+      color: #fff;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 700;
+      text-align: center;
+      font-size: 14px;
+      outline: none;
+    }
+    .query-arrow { color: var(--text-muted); font-size: 14px; font-weight: 700; }
+    .icon-btn {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid var(--surface-border);
+      color: #fff;
+      border-radius: 12px;
+      padding: 12px 18px;
+      font-weight: 700;
+      font-size: 14px;
+      cursor: pointer;
+    }
+
+    /* Modal Sheet for Supabase Settings */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(6px);
+      display: none;
+      align-items: flex-end;
+      z-index: 100;
+    }
+    .modal-sheet {
+      background: #111827;
+      border-top: 1px solid var(--surface-border);
+      border-radius: 24px 24px 0 0;
+      padding: 24px 20px 32px;
+      width: 100%;
+      max-width: 520px;
+      margin: 0 auto;
+      animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+    .modal-title { font-size: 18px; font-weight: 800; color: #fff; margin-bottom: 4px; }
+    .modal-desc { font-size: 13px; color: var(--text-muted); margin-bottom: 20px; }
+    .field-label { font-size: 12px; font-weight: 700; color: #cbd5e1; margin-bottom: 6px; display: block; }
+
+    /* Timeline log */
+    .timeline { max-height: 140px; overflow-y: auto; padding-right: 4px; }
+    .timeline-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      font-size: 13px;
+    }
+    .timeline-action { font-family: 'JetBrains Mono', monospace; font-size: 11px; padding: 2px 8px; border-radius: 6px; font-weight: 700; }
+    .tag-bridged { background: rgba(56, 189, 248, 0.15); color: #38bdf8; }
+    .tag-created { background: rgba(16, 185, 129, 0.15); color: #34d399; }
+    .tag-extended { background: rgba(168, 85, 247, 0.15); color: #c084fc; }
+    .tag-duplicate { background: rgba(148, 163, 184, 0.15); color: #94a3b8; }
   </style>
 </head>
 <body>
-  <div class="header">
-    <h1>Warehouse Arrival Tracker</h1>
-    <p>Live Incremental Interval Index & Missing Gap Monitor</p>
+
+  <!-- Top Bar -->
+  <div class="topbar">
+    <div class="brand">
+      <div class="brand-icon">📦</div>
+      <div>
+        <div class="brand-title">Warehouse Index</div>
+        <div class="brand-sub">Real-Time Delivery Tracker</div>
+      </div>
+    </div>
+    <button class="settings-btn" onclick="openSettings()" title="Settings">⚙️</button>
   </div>
 
-  <div class="card" style="border-color: #0284c7; background: #0b1e33;">
-    <div class="card-title" style="color: #38bdf8;">🔗 Supabase Cloud Sync</div>
-    <div style="font-size: 12px; color: #94a3b8; margin-bottom: 8px;">Connect to your friend's live Supabase instance:</div>
-    <div class="input-row" style="margin-bottom: 6px;">
-      <input type="text" id="sb-url" placeholder="Supabase Project URL (https://xyz.supabase.co)" style="font-size: 13px; padding: 8px 10px;">
-    </div>
-    <div class="input-row" style="margin-bottom: 6px;">
-      <input type="password" id="sb-key" placeholder="Supabase Anon Public Key (eyJ...)" style="font-size: 13px; padding: 8px 10px;">
-      <button onclick="saveSupabaseConfig()" style="padding: 8px 14px; font-size: 13px;">Save</button>
-    </div>
-    <div id="sb-status" style="font-size: 12px; color: #38bdf8;">Status: Running in local offline mode (or enter credentials above)</div>
+  <!-- Status Pill -->
+  <div class="live-pill">
+    <div class="pulse-dot"></div>
+    <span id="status-text">System ready for deliveries</span>
   </div>
 
-  <div class="status-banner" id="status-banner">Ready to track arrivals</div>
-
+  <!-- Log Package Card -->
   <div class="card">
-    <div class="card-title">Log Incoming Package</div>
-    <div class="input-row">
-      <input type="text" id="pkg-input" placeholder="e.g. 4 or 1, 3, 7, 2, 6">
-      <button onclick="handleAdd()">Add</button>
+    <div class="card-head">
+      <span class="card-title">Log Package Delivery</span>
+      <span id="sync-indicator" style="font-size: 11px; color: #10b981; font-weight: 600;">● Local Active</span>
     </div>
-    <div class="quick-actions">
-      <button class="btn-outline" onclick="handleAddNum(4)">+ Bridge (4)</button>
-      <button class="btn-outline" onclick="handleAddNum(5)">+ Bridge (5)</button>
-      <button class="btn-outline" onclick="loadDemo()">Load [1, 3, 7, 2, 6]</button>
-      <button class="btn-outline" onclick="resetAll()" style="border-color: #ef4444; color: #f87171;">Clear</button>
+    <div class="input-group">
+      <input type="text" id="pkg-input" class="main-input" placeholder="Enter ID (e.g. 4 or 1, 3, 7, 2, 6)">
+      <button class="primary-btn" onclick="handleAdd()">Add</button>
     </div>
-  </div>
-
-  <div class="card">
-    <div class="card-title">Received Consecutive Ranges</div>
-    <div class="badge-container" id="intervals-container">
-      <span style="color: #64748b; font-style: italic;">No packages received yet</span>
+    <div class="quick-chips">
+      <div class="chip" onclick="handleAddNum(4)">+ Bridge (4)</div>
+      <div class="chip" onclick="handleAddNum(5)">+ Bridge (5)</div>
+      <div class="chip" onclick="loadDemo()">⚡ Load [1, 3, 7, 2, 6]</div>
+      <div class="chip" onclick="resetAll()" style="color: #f87171;">Reset</div>
     </div>
   </div>
 
+  <!-- Received Intervals Card -->
   <div class="card">
-    <div class="card-title">Check Missing Gaps in Range</div>
-    <div class="input-row">
-      <input type="number" id="gap-min" value="1" style="max-width: 90px;" placeholder="Min">
-      <span style="align-self: center; color: #94a3b8;">to</span>
-      <input type="number" id="gap-max" value="10" style="max-width: 90px;" placeholder="Max">
-      <button onclick="renderGaps()" style="background-color: #334155;">Find</button>
+    <div class="card-head">
+      <span class="card-title">Received Consecutive Ranges</span>
+      <span id="total-badge" style="font-size: 12px; color: var(--text-muted); font-weight: 700;">0 packages</span>
     </div>
-    <div class="badge-container" id="gaps-container"></div>
+    <div class="badge-grid" id="intervals-container">
+      <span style="color: #64748b; font-size: 13px; font-style: italic;">No packages logged yet</span>
+    </div>
   </div>
 
+  <!-- Gap Inspector Card -->
   <div class="card">
-    <div class="card-title">Recent Activity Log</div>
-    <div class="log-list" id="log-list">
-      <div style="color: #64748b; font-style: italic;">Activity log will appear here</div>
+    <div class="card-head">
+      <span class="card-title">Inspect Missing Number Gaps</span>
+    </div>
+    <div class="query-row">
+      <input type="number" id="gap-min" class="small-input" value="1" placeholder="Min">
+      <span class="query-arrow">→</span>
+      <input type="number" id="gap-max" class="small-input" value="10" placeholder="Max">
+      <button class="icon-btn" onclick="renderGaps()">Find</button>
+    </div>
+    <div class="badge-grid" id="gaps-container"></div>
+  </div>
+
+  <!-- Activity Timeline -->
+  <div class="card">
+    <div class="card-head">
+      <span class="card-title">Live Activity Log</span>
+    </div>
+    <div class="timeline" id="log-list">
+      <div style="color: #64748b; font-size: 13px; font-style: italic;">Recent arrivals will stream here</div>
+    </div>
+  </div>
+
+  <!-- Hidden Settings Modal Sheet -->
+  <div class="modal-overlay" id="settings-modal" onclick="closeSettings(event)">
+    <div class="modal-sheet" onclick="event.stopPropagation()">
+      <div class="modal-title">Cloud Integration</div>
+      <div class="modal-desc">Connect to Supabase to sync live arrivals with your team's central warehouse dashboard.</div>
+      
+      <label class="field-label">Supabase Project URL</label>
+      <input type="text" id="sb-url" class="main-input" placeholder="https://xyz.supabase.co" style="margin-bottom: 12px; width: 100%;">
+
+      <label class="field-label">Anon Public API Key</label>
+      <input type="password" id="sb-key" class="main-input" placeholder="eyJhbGciOi..." style="margin-bottom: 20px; width: 100%;">
+
+      <div style="display: flex; gap: 10px;">
+        <button class="primary-btn" style="flex: 1; padding: 14px;" onclick="saveSupabaseConfig()">Save & Connect</button>
+        <button class="icon-btn" style="padding: 14px;" onclick="document.getElementById('settings-modal').style.display='none'">Close</button>
+      </div>
     </div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
-    // Supabase State
-    let supabaseClient = null;
-    let currentSessionId = '00000000-0000-0000-0000-000000000001';
-
-    function initSupabase() {
-      const savedUrl = localStorage.getItem('supabase_url');
-      const savedKey = localStorage.getItem('supabase_key');
-      if (savedUrl && savedKey) {
-        document.getElementById('sb-url').value = savedUrl;
-        document.getElementById('sb-key').value = savedKey;
-        try {
-          supabaseClient = window.supabase.createClient(savedUrl, savedKey);
-          document.getElementById('sb-status').innerHTML = '<span style="color: #34d399;">✓ Connected to Supabase Cloud!</span>';
-        } catch (e) {
-          document.getElementById('sb-status').innerText = 'Connection error: ' + e.message;
-        }
-      }
-    }
-
-    function saveSupabaseConfig() {
-      const url = document.getElementById('sb-url').value.trim();
-      const key = document.getElementById('sb-key').value.trim();
-      if (!url || !key) {
-        alert('Please enter both Supabase URL and Anon Key');
-        return;
-      }
-      localStorage.setItem('supabase_url', url);
-      localStorage.setItem('supabase_key', key);
-      try {
-        supabaseClient = window.supabase.createClient(url, key);
-        document.getElementById('sb-status').innerHTML = '<span style="color: #34d399;">✓ Connected to Supabase Cloud!</span>';
-        log('Connected to Supabase. Arrivals will sync live.');
-      } catch (e) {
-        alert('Invalid Supabase configuration: ' + e.message);
-      }
-    }
-
-    // Live Interval Index Implementation
+    // Live Interval Index
     class LiveArrivalIndex {
-      constructor() { this.intervals = []; }
+      constructor() { this.intervals = []; this.totalPackages = 0; }
 
       add(id) {
         id = Number(id);
@@ -140,6 +391,7 @@
         const n = this.intervals.length;
         if (n === 0) {
           this.intervals.push([id, id]);
+          this.totalPackages++;
           return { success: true, action: 'CREATED' };
         }
 
@@ -157,6 +409,7 @@
           return { success: false, action: 'DUPLICATE' };
         }
 
+        this.totalPackages++;
         const canMergeLeft = leftIdx >= 0 && this.intervals[leftIdx][1] + 1 === id;
         const canMergeRight = rightIdx < n && id + 1 === this.intervals[rightIdx][0];
 
@@ -194,24 +447,81 @@
     }
 
     const index = new LiveArrivalIndex();
+    let supabaseClient = null;
 
-    function log(msg) {
-      document.getElementById('status-banner').innerText = msg;
-      const logList = document.getElementById('log-list');
+    function openSettings() { document.getElementById('settings-modal').style.display = 'flex'; }
+    function closeSettings(e) { if (e.target.id === 'settings-modal') document.getElementById('settings-modal').style.display = 'none'; }
+
+    function initSupabase() {
+      const url = localStorage.getItem('supabase_url');
+      const key = localStorage.getItem('supabase_key');
+      if (url && key) {
+        document.getElementById('sb-url').value = url;
+        document.getElementById('sb-key').value = key;
+        try {
+          supabaseClient = window.supabase.createClient(url, key);
+          document.getElementById('sync-indicator').innerHTML = '● Cloud Synced';
+          document.getElementById('sync-indicator').style.color = '#38bdf8';
+        } catch (e) {}
+      }
+    }
+
+    function saveSupabaseConfig() {
+      const url = document.getElementById('sb-url').value.trim();
+      const key = document.getElementById('sb-key').value.trim();
+      if (!url || !key) return;
+      localStorage.setItem('supabase_url', url);
+      localStorage.setItem('supabase_key', key);
+      try {
+        supabaseClient = window.supabase.createClient(url, key);
+        document.getElementById('sync-indicator').innerHTML = '● Cloud Synced';
+        document.getElementById('sync-indicator').style.color = '#38bdf8';
+        document.getElementById('settings-modal').style.display = 'none';
+        setStatus('Connected to Supabase Cloud');
+      } catch (e) {
+        alert('Invalid credentials');
+      }
+    }
+
+    function setStatus(msg) {
+      document.getElementById('status-text').innerText = msg;
+    }
+
+    function logTimeline(id, action) {
+      const list = document.getElementById('log-list');
       const item = document.createElement('div');
-      item.className = 'log-item';
-      item.innerHTML = `<span class="log-bullet">•</span> <span>${msg}</span>`;
-      logList.prepend(item);
+      item.className = 'timeline-item';
+      
+      const tagClass = 'tag-' + action.toLowerCase();
+      item.innerHTML = `
+        <span style="color: #e2e8f0; font-weight: 600;">Package #${id}</span>
+        <span class="timeline-action ${tagClass}">${action}</span>
+      `;
+      list.prepend(item);
+    }
+
+    async function syncToSupabase(id, action) {
+      if (!supabaseClient) return;
+      try {
+        await supabaseClient.from('package_arrivals').insert([{
+          session_id: '00000000-0000-0000-0000-000000000001',
+          package_id: id,
+          operation_type: action
+        }]);
+      } catch (err) {
+        console.error('Sync err:', err);
+      }
     }
 
     function renderIntervals() {
       const container = document.getElementById('intervals-container');
+      document.getElementById('total-badge').innerText = `${index.totalPackages} packages`;
       if (index.intervals.length === 0) {
-        container.innerHTML = '<span style="color: #64748b; font-style: italic;">No packages received yet</span>';
+        container.innerHTML = '<span style="color: #64748b; font-size: 13px; font-style: italic;">No packages logged yet</span>';
         return;
       }
       container.innerHTML = index.intervals.map(([s, e]) => 
-        `<div class="badge-success">${s === e ? `[ ${s} ]` : `[ ${s} - ${e} ]`}</div>`
+        `<div class="range-badge"><span>📦</span> ${s === e ? `[ ${s} ]` : `[ ${s} — ${e} ]`}</div>`
       ).join('');
     }
 
@@ -221,30 +531,18 @@
       const gaps = index.getMissingRanges(min, max);
       const container = document.getElementById('gaps-container');
       if (gaps.length === 0) {
-        container.innerHTML = '<span style="color: #34d399;">✓ No missing packages in this range!</span>';
+        container.innerHTML = '<span style="color: #34d399; font-size: 13px; font-weight: 600;">✓ Complete sequence! No missing packages.</span>';
         return;
       }
       container.innerHTML = gaps.map(([s, e]) => 
-        `<div class="badge-warning">${s === e ? `Missing: ${s}` : `Missing: ${s} - ${e}`}</div>`
+        `<div class="gap-badge"><span>⚠️</span> ${s === e ? `Gap: ${s}` : `Gap: ${s} — ${e}`}</div>`
       ).join('');
-    }
-
-    async function syncToSupabase(id, action) {
-      if (!supabaseClient) return;
-      try {
-        await supabaseClient.from('package_arrivals').insert([{
-          session_id: currentSessionId,
-          package_id: id,
-          operation_type: action
-        }]);
-      } catch (err) {
-        console.error('Supabase sync error:', err);
-      }
     }
 
     function handleAddNum(num) {
       const res = index.add(num);
-      log(`Package #${num}: ${res.action}`);
+      setStatus(`Package #${num} → ${res.action}`);
+      logTimeline(num, res.action);
       syncToSupabase(num, res.action);
       renderIntervals();
       renderGaps();
@@ -271,13 +569,13 @@
 
     function resetAll() {
       index.intervals = [];
+      index.totalPackages = 0;
       document.getElementById('log-list').innerHTML = '';
-      log('Cleared all intervals');
+      setStatus('System reset. Ready for deliveries.');
       renderIntervals();
       renderGaps();
     }
-  </script>
-  <script>
+
     initSupabase();
   </script>
 </body>
