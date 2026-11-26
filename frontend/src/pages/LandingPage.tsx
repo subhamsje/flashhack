@@ -103,7 +103,7 @@ export const LandingPage: React.FC = () => {
       {/* Minimal Footer */}
       <footer className="py-10 px-6 max-w-6xl mx-auto w-full flex flex-wrap items-center justify-between gap-4 text-xs font-mono text-muted">
         <div className="flex items-center gap-2">
-          <span className="font-bold text-text">FLASHHACK</span>
+          <span className="font-bold text-text">WAREHOUSE</span>
           <span>— Academic Engineering Demonstration</span>
         </div>
 

@@ -1,11 +1,11 @@
-# FLASHHACK — Live Arrival Index & Warehouse Operations Platform
+# WAREHOUSE — Live Arrival Index & Warehouse Operations Platform
 
 > **Advanced C Implementation & 10-Workspace System in `new/`**  
 > The standalone C-based AVL Interval Tree system, embedded C HTTP server, 10-workspace web dashboard, automated test suite, benchmarks, and academic deliverables are located in the [**`new/`**](new/) directory. See [**`new/README.md`**](new/README.md) for details.
 
 A complete, high-performance warehouse logistics intelligence platform designed to solve **Problem Statement 09: The Warehouse's Broken Number Ranges** (Problem Domain: Balanced Searching and Ordered Indexing).
 
-FLASHHACK tracks package numbers arriving in arbitrary, out-of-order sequence and maintains them incrementally as compact, sorted, non-overlapping consecutive intervals `[start, end]`. Also queries received intervals and missing number ranges (gaps) within any bounded query window `[low, high]` with sub-microsecond latency.
+WAREHOUSE tracks package numbers arriving in arbitrary, out-of-order sequence and maintains them incrementally as compact, sorted, non-overlapping consecutive intervals `[start, end]`. Also queries received intervals and missing number ranges (gaps) within any bounded query window `[low, high]` with sub-microsecond latency.
 
 ---
 

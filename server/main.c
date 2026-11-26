@@ -619,7 +619,7 @@ int main(int argc, char **argv) {
     }
 
     printf("=========================================================\n");
-    printf(" FLASHHACK Academic C Engine HTTP Server v2.1\n");
+    printf(" WAREHOUSE Academic C Engine HTTP Server v2.1\n");
     printf(" Listening on http://0.0.0.0:%d\n", port);
     printf("=========================================================\n");
 

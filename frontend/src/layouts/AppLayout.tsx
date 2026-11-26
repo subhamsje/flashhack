@@ -50,10 +50,10 @@ export const AppLayout: React.FC = () => {
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded bg-primary text-white flex items-center justify-center font-mono font-bold text-sm shadow-sm">
-              FH
+              WH
             </div>
             <div className="flex flex-col">
-              <span className="font-mono font-bold text-sm tracking-tight text-text">FLASHHACK</span>
+              <span className="font-mono font-bold text-sm tracking-tight text-text">WAREHOUSE</span>
               <span className="text-[9px] font-mono text-muted uppercase tracking-widest">Live Arrival Index</span>
             </div>
           </Link>

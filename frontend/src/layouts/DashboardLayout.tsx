@@ -40,10 +40,10 @@ export const DashboardLayout: React.FC = () => {
         <div className="h-16 px-6 border-b border-border flex items-center justify-between">
           <NavLink to="/" className="flex items-center gap-2.5">
             <div className="w-7 h-7 rounded bg-primary text-white flex items-center justify-center font-mono font-bold text-xs shadow-sm">
-              FH
+              WH
             </div>
             <div className="flex flex-col">
-              <span className="font-mono font-bold tracking-tight text-xs text-ink">FLASHHACK</span>
+              <span className="font-mono font-bold tracking-tight text-xs text-ink">WAREHOUSE</span>
               <span className="text-[9px] font-mono text-ink-muted uppercase tracking-widest">Operations Hub</span>
             </div>
           </NavLink>
