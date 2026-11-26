@@ -100,8 +100,9 @@ export const useRealtimeSync = (onStateSync?: (intervals: Interval[]) => void) =
     fetchLogs();
     reconcileAuthoritativeState();
 
-    // Setup Supabase Realtime channel for table changes & presence
-    const channel = supabase.channel(`warehouse-${WAREHOUSE_ID}`, {
+    // Unique channel per hook instance to prevent "cannot add callbacks after subscribe()" in React StrictMode/re-renders
+    const channelName = `warehouse-${WAREHOUSE_ID}-${Math.random().toString(36).substring(2, 9)}`;
+    const channel = supabase.channel(channelName, {
       config: { presence: { key: deviceId.current } }
     });
 
@@ -117,7 +118,6 @@ export const useRealtimeSync = (onStateSync?: (intervals: Interval[]) => void) =
       async (payload) => {
         const newState = payload.new as any;
         if (newState && newState.received_intervals) {
-          // Monotonic state version checking
           if (newState.state_version >= currentVersion) {
             setCurrentVersion(newState.state_version);
             await warehouseApi.reconstructFromCloud();
@@ -194,7 +194,7 @@ export const useRealtimeSync = (onStateSync?: (intervals: Interval[]) => void) =
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
-      channel.unsubscribe();
+      supabase.removeChannel(channel);
     };
   }, [fetchLogs, reconcileAuthoritativeState, currentVersion, onStateSync]);
 
