@@ -3,6 +3,30 @@ export interface Interval {
   end: number;
 }
 
+export interface RemovalResponse {
+  success: boolean;
+  package_id: number;
+  operation: 'NOT_FOUND' | 'NODE_DELETED' | 'SHRUNK_LEFT' | 'SHRUNK_RIGHT' | 'SPLIT';
+  prev_interval_count: number;
+  new_interval_count: number;
+  total_packages: number;
+  execution_time_ns: number;
+  touched_prev: Interval;
+  touched_new: Interval[];
+  current_intervals: Interval[];
+}
+
+export interface ActivityLog {
+  id: string;
+  session_id: string;
+  action: 'PACKAGE_ADDED' | 'PACKAGE_REMOVED' | 'DUPLICATE_IGNORED' | 'BATCH_IMPORT' | 'SESSION_RESET';
+  package_id: number | null;
+  device_id: string;
+  user_id: string;
+  metadata: Record<string, any>;
+  created_at: string;
+}
+
 export interface ArrivalResponse {
   success: boolean;
   package_id: number;
@@ -80,6 +104,15 @@ export const warehouseApi = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ package_ids: ids })
+    });
+    return await res.json();
+  },
+
+  async removePackage(packageId: number): Promise<RemovalResponse> {
+    const res = await fetch(`${API_BASE}/packages/remove`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ package_id: packageId })
     });
     return await res.json();
   },
