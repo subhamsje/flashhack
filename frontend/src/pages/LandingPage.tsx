@@ -10,34 +10,29 @@ export const LandingPage: React.FC = () => {
     <div className="bg-background text-text flex flex-col selection:bg-accent selection:text-text">
       {/* Hero Section */}
       <section className="py-16 px-6 max-w-6xl mx-auto border-b border-border space-y-10">
-        <div className="grid lg:grid-cols-12 gap-8 items-center">
-          <div className="lg:col-span-5 space-y-5">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-surface border border-border text-xs font-mono text-muted">
-              <span className="w-2 h-2 rounded-full bg-primary" />
-              Problem Statement 09: Balanced Searching and Ordered Indexing
-            </div>
-
-            <h1 className="font-serif text-4xl sm:text-5xl font-medium tracking-tight text-text leading-[1.15]">
+        <div className="grid lg:grid-cols-12 gap-10 items-center">
+          <div className="lg:col-span-5 space-y-6">
+            <h1 className="font-serif text-4xl sm:text-5xl lg:text-6xl font-medium tracking-tight text-text leading-[1.12]">
               Every arrival has a place. <br />
-              <span className="italic text-primary">Every missing number has a reason.</span>
+              <span className="italic text-primary font-normal">Every missing number has a reason.</span>
             </h1>
 
-            <p className="text-base text-muted leading-relaxed font-sans">
-              A live package indexing system that organizes out-of-order arrivals into consecutive ranges using balanced AVL trees.
+            <p className="text-base text-muted leading-relaxed font-sans max-w-lg">
+              A high-performance warehouse package indexing system that organizes out-of-order deliveries into compact consecutive intervals using self-balancing AVL trees.
             </p>
 
-            <div className="flex items-center gap-3 pt-2">
+            <div className="flex flex-wrap items-center gap-3 pt-2">
               <Link
                 to="/app"
-                className="px-5 py-2.5 bg-primary hover:bg-primary-dark text-white rounded text-sm font-medium transition shadow-sm flex items-center gap-2"
+                className="px-6 py-3 bg-primary hover:bg-primary-dark text-white rounded-lg text-sm font-medium transition shadow-sm flex items-center gap-2"
               >
-                Try Live Demo <ArrowRight className="w-4 h-4" />
+                Explore Live Index <ArrowRight className="w-4 h-4" />
               </Link>
               <a
                 href="#how-it-works"
-                className="px-4 py-2.5 bg-surface hover:bg-border/40 text-text border border-border rounded text-sm font-medium transition"
+                className="px-5 py-3 bg-surface hover:bg-border/40 text-text border border-border rounded-lg text-sm font-medium transition"
               >
-                Explore How It Works
+                See How It Works
               </a>
             </div>
           </div>
