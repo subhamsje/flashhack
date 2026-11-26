@@ -49,9 +49,7 @@ export const AppLayout: React.FC = () => {
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded bg-primary text-white flex items-center justify-center font-mono font-bold text-sm shadow-sm">
-              WH
-            </div>
+            <img src="./logo.png" alt="Warehouse Logo" className="w-9 h-9 rounded-lg object-cover shadow-sm border border-border" />
             <div className="flex flex-col">
               <span className="font-mono font-bold text-sm tracking-tight text-text">WAREHOUSE</span>
               <span className="text-[9px] font-mono text-muted uppercase tracking-widest">Live Arrival Index</span>
