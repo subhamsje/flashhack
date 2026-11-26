@@ -57,13 +57,13 @@ export const AppLayout: React.FC = () => {
             </div>
           </Link>
 
-          {/* Navigation */}
-          <nav className="hidden md:flex items-center gap-6 text-xs font-mono font-medium">
+          {/* Navigation - Clean, streamlined primary links */}
+          <nav className="hidden lg:flex items-center gap-7 text-xs font-mono font-medium">
             <NavLink
               to="/"
               end
               className={({ isActive }) =>
-                `transition pb-1 border-b-2 ${
+                `transition py-1 border-b-2 ${
                   isActive ? 'border-primary text-primary font-bold' : 'border-transparent text-muted hover:text-text'
                 }`
               }
@@ -73,70 +73,59 @@ export const AppLayout: React.FC = () => {
             <NavLink
               to="/app"
               className={({ isActive }) =>
-                `transition pb-1 border-b-2 ${
+                `transition py-1 border-b-2 ${
                   isActive ? 'border-primary text-primary font-bold' : 'border-transparent text-muted hover:text-text'
                 }`
               }
             >
-              Live Arrival Index
+              Live Index
             </NavLink>
             <NavLink
               to="/range-analysis"
               className={({ isActive }) =>
-                `transition pb-1 border-b-2 ${
+                `transition py-1 border-b-2 ${
                   isActive ? 'border-primary text-primary font-bold' : 'border-transparent text-muted hover:text-text'
                 }`
               }
             >
-              Missing Intelligence
-            </NavLink>
-            <NavLink
-              to="/activity-log"
-              className={({ isActive }) =>
-                `transition pb-1 border-b-2 ${
-                  isActive ? 'border-primary text-primary font-bold' : 'border-transparent text-muted hover:text-text'
-                }`
-              }
-            >
-              Activity & History
+              Missing Ranges
             </NavLink>
             <NavLink
               to="/debugger"
               className={({ isActive }) =>
-                `transition pb-1 border-b-2 ${
+                `transition py-1 border-b-2 ${
                   isActive ? 'border-primary text-primary font-bold' : 'border-transparent text-muted hover:text-text'
                 }`
               }
             >
-              Algorithm Debugger
+              Debugger
             </NavLink>
             <NavLink
-              to="/algorithm"
+              to="/activity-log"
               className={({ isActive }) =>
-                `transition pb-1 border-b-2 ${
+                `transition py-1 border-b-2 ${
                   isActive ? 'border-primary text-primary font-bold' : 'border-transparent text-muted hover:text-text'
                 }`
               }
             >
-              About Algorithm
+              History
             </NavLink>
           </nav>
 
           {/* Right Controls: Minimalist Multi-Device Cloud Status & Mobile Menu Toggle */}
           <div className="flex items-center gap-2 sm:gap-3">
             <div
-              className={`flex items-center gap-2 px-2.5 py-1 text-xs font-mono rounded border shadow-sm transition ${status.bg}`}
+              className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-mono rounded-full border shadow-2xs transition ${status.bg}`}
               title={`Warehouse: Main Distribution\nState Version: v${currentVersion}\nLast Synced: ${lastSyncTime}\nOnline Devices: ${onlineDevices}`}
             >
-              <span className={`w-2 h-2 rounded-full ${status.dot}`} />
-              <span className="font-bold">{status.label}</span>
-              <span className="text-[10px] opacity-75 hidden sm:inline">v{currentVersion}</span>
-              <span className="text-[10px] opacity-60 hidden md:inline">({onlineDevices} online)</span>
+              <span className={`w-1.5 h-1.5 rounded-full ${status.dot}`} />
+              <span className="font-semibold text-[11px]">{status.label}</span>
+              <span className="text-[10px] opacity-60 hidden md:inline">({onlineDevices})</span>
             </div>
 
             {/* Auth / Account Button */}
             {user ? (
-              <div className="hidden sm:flex items-center gap-1.5 text-xs font-mono bg-background border border-border px-2 py-1 rounded">
+              <div className="hidden sm:flex items-center gap-1.5 text-xs font-mono bg-background border border-border px-2.5 py-1 rounded-full">
                 <span className="text-[11px] text-text font-semibold truncate max-w-[120px]">
                   {user.email?.split('@')[0] || 'Operator'}
                 </span>
@@ -145,38 +134,38 @@ export const AppLayout: React.FC = () => {
                   className="text-muted hover:text-text p-0.5 rounded transition"
                   title="Sign Out"
                 >
-                  <LogOut className="w-3.5 h-3.5" />
+                  <LogOut className="w-3 h-3" />
                 </button>
               </div>
             ) : (
               <button
                 onClick={() => setAuthModalOpen(true)}
-                className="hidden sm:flex items-center gap-1 px-2.5 py-1 text-xs font-mono font-medium rounded bg-primary hover:bg-primary-dark text-white transition shadow-xs"
+                className="hidden sm:flex items-center gap-1 px-3 py-1 text-xs font-mono font-medium rounded-full bg-primary hover:bg-primary-dark text-white transition shadow-xs"
               >
-                <LogIn className="w-3.5 h-3.5" /> Sign In
+                <LogIn className="w-3 h-3" /> Sign In
               </button>
             )}
 
-            {/* Mobile Hamburger Toggle Button */}
+            {/* Mobile / Tablet Hamburger Toggle Button */}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="md:hidden p-2 text-text hover:bg-background rounded border border-border"
+              className="lg:hidden p-2 text-text hover:bg-background rounded-lg border border-border transition"
               aria-label="Toggle navigation menu"
             >
-              {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+              {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4 text-muted hover:text-text" />}
             </button>
           </div>
         </div>
 
         {/* Mobile Navigation Dropdown Drawer */}
         {mobileMenuOpen && (
-          <div className="md:hidden border-t border-border bg-surface px-6 py-4 space-y-3 font-mono text-xs shadow-lg animate-in fade-in duration-150">
+          <div className="lg:hidden border-t border-border bg-surface px-6 py-4 space-y-3 font-mono text-xs shadow-lg animate-in fade-in duration-150">
             {[
               { to: '/', label: 'Overview', exact: true },
-              { to: '/app', label: 'Live Arrival Index' },
-              { to: '/range-analysis', label: 'Missing Intelligence' },
-              { to: '/activity-log', label: 'Activity & History' },
+              { to: '/app', label: 'Live Index' },
+              { to: '/range-analysis', label: 'Missing Ranges' },
               { to: '/debugger', label: 'Algorithm Debugger' },
+              { to: '/activity-log', label: 'History & Activity' },
               { to: '/algorithm', label: 'About Algorithm' }
             ].map((item) => (
               <NavLink
