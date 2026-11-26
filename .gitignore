@@ -1,4 +1,15 @@
+# Build binaries & test artifacts
+tests/test_core
+tests/test_api/test_server
+server/warehouse_server
+cli/warehouse_cli
 warehouse
 test_warehouse
 *.o
+*.dSYM/
 .DS_Store
+
+# Frontend build & dependencies
+frontend/node_modules/
+frontend/dist/
+.env

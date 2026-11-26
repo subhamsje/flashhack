@@ -1,0 +1,43 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #F5F3ED;
+  --surface: #FFFFFF;
+  --surface-muted: #EAE8DF;
+  --ink: #202B29;
+  --ink-muted: #68746F;
+  --primary: #176B5B;
+  --primary-dark: #104C42;
+  --accent: #E3A45B;
+  --accent-secondary: #D16F51;
+  --success: #3F876C;
+  --warning: #D99A45;
+  --danger: #C75D50;
+  --border: #DCDDD4;
+}
+
+body {
+  margin: 0;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  background-color: var(--background);
+  color: var(--ink);
+  overflow-x: hidden;
+}
+
+/* Custom scrollbars for data tables and logs */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #DCDDD4;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #B8BAAE;
+}
