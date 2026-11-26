@@ -1,10 +1,11 @@
 {
   "name": "Warehouse Arrival Tracker",
   "short_name": "Warehouse",
-  "start_url": "./index.html",
+  "start_url": "./",
+  "scope": "./",
   "display": "standalone",
-  "background_color": "#0f172a",
-  "theme_color": "#0f172a",
+  "background_color": "#090d16",
+  "theme_color": "#090d16",
   "description": "Live Warehouse Consecutive Range & Gap Index Tracker",
   "icons": [
     {
