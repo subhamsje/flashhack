@@ -36,6 +36,19 @@
     <p>Live Incremental Interval Index & Missing Gap Monitor</p>
   </div>
 
+  <div class="card" style="border-color: #0284c7; background: #0b1e33;">
+    <div class="card-title" style="color: #38bdf8;">🔗 Supabase Cloud Sync</div>
+    <div style="font-size: 12px; color: #94a3b8; margin-bottom: 8px;">Connect to your friend's live Supabase instance:</div>
+    <div class="input-row" style="margin-bottom: 6px;">
+      <input type="text" id="sb-url" placeholder="Supabase Project URL (https://xyz.supabase.co)" style="font-size: 13px; padding: 8px 10px;">
+    </div>
+    <div class="input-row" style="margin-bottom: 6px;">
+      <input type="password" id="sb-key" placeholder="Supabase Anon Public Key (eyJ...)" style="font-size: 13px; padding: 8px 10px;">
+      <button onclick="saveSupabaseConfig()" style="padding: 8px 14px; font-size: 13px;">Save</button>
+    </div>
+    <div id="sb-status" style="font-size: 12px; color: #38bdf8;">Status: Running in local offline mode (or enter credentials above)</div>
+  </div>
+
   <div class="status-banner" id="status-banner">Ready to track arrivals</div>
 
   <div class="card">
@@ -77,7 +90,45 @@
     </div>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
+    // Supabase State
+    let supabaseClient = null;
+    let currentSessionId = '00000000-0000-0000-0000-000000000001';
+
+    function initSupabase() {
+      const savedUrl = localStorage.getItem('supabase_url');
+      const savedKey = localStorage.getItem('supabase_key');
+      if (savedUrl && savedKey) {
+        document.getElementById('sb-url').value = savedUrl;
+        document.getElementById('sb-key').value = savedKey;
+        try {
+          supabaseClient = window.supabase.createClient(savedUrl, savedKey);
+          document.getElementById('sb-status').innerHTML = '<span style="color: #34d399;">✓ Connected to Supabase Cloud!</span>';
+        } catch (e) {
+          document.getElementById('sb-status').innerText = 'Connection error: ' + e.message;
+        }
+      }
+    }
+
+    function saveSupabaseConfig() {
+      const url = document.getElementById('sb-url').value.trim();
+      const key = document.getElementById('sb-key').value.trim();
+      if (!url || !key) {
+        alert('Please enter both Supabase URL and Anon Key');
+        return;
+      }
+      localStorage.setItem('supabase_url', url);
+      localStorage.setItem('supabase_key', key);
+      try {
+        supabaseClient = window.supabase.createClient(url, key);
+        document.getElementById('sb-status').innerHTML = '<span style="color: #34d399;">✓ Connected to Supabase Cloud!</span>';
+        log('Connected to Supabase. Arrivals will sync live.');
+      } catch (e) {
+        alert('Invalid Supabase configuration: ' + e.message);
+      }
+    }
+
     // Live Interval Index Implementation
     class LiveArrivalIndex {
       constructor() { this.intervals = []; }
@@ -178,9 +229,23 @@
       ).join('');
     }
 
+    async function syncToSupabase(id, action) {
+      if (!supabaseClient) return;
+      try {
+        await supabaseClient.from('package_arrivals').insert([{
+          session_id: currentSessionId,
+          package_id: id,
+          operation_type: action
+        }]);
+      } catch (err) {
+        console.error('Supabase sync error:', err);
+      }
+    }
+
     function handleAddNum(num) {
       const res = index.add(num);
       log(`Package #${num}: ${res.action}`);
+      syncToSupabase(num, res.action);
       renderIntervals();
       renderGaps();
     }
@@ -211,6 +276,9 @@
       renderIntervals();
       renderGaps();
     }
+  </script>
+  <script>
+    initSupabase();
   </script>
 </body>
 </html>
