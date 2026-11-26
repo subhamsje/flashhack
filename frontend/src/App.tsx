@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './hooks/useAuth';
 import { AppLayout } from './layouts/AppLayout';
 import { LandingPage } from './pages/LandingPage';
@@ -10,7 +10,7 @@ import { AlgorithmPage } from './pages/AlgorithmPage';
 export const App: React.FC = () => {
   return (
     <AuthProvider>
-      <BrowserRouter>
+      <HashRouter>
         <Routes>
           <Route element={<AppLayout />}>
             {/* Page 1: Landing Page */}
@@ -29,7 +29,7 @@ export const App: React.FC = () => {
           {/* Fallback */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
-      </BrowserRouter>
+      </HashRouter>
     </AuthProvider>
   );
 };
