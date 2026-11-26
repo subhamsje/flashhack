@@ -369,26 +369,43 @@ export const LiveArrivalPage: React.FC = () => {
         />
       </div>
 
-      {/* SECTION E: Operation Event Timeline & Algorithmic Explanation */}
+      {/* SECTION E: Synchronized 6-Step Algorithmic Pipeline & Operation Timeline */}
       <div className="grid md:grid-cols-2 gap-6">
-        {/* Algorithmic Step-by-Step */}
-        <div className="p-6 bg-surface border border-border rounded-xl space-y-3 shadow-sm">
+        {/* Synchronized 6-Step Execution Pipeline */}
+        <div className="p-6 bg-surface border border-border rounded-xl space-y-4 shadow-sm font-mono text-xs">
           <div className="flex items-center justify-between border-b border-border pb-2">
             <h3 className="font-serif text-base font-semibold text-text flex items-center gap-2">
-              <Info className="w-4 h-4 text-primary" /> Step-by-Step Algorithmic Explanation
+              <Info className="w-4 h-4 text-primary" /> Synchronized Execution Pipeline
             </h3>
             {lastEvent && (
-              <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-primary-light text-primary">
+              <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded bg-primary-light text-primary">
                 {lastEvent.operation}
               </span>
             )}
           </div>
 
-          <div className="space-y-1.5 font-mono text-xs">
-            {stepExplanation.map((step, idx) => (
-              <div key={idx} className="flex items-start gap-2 text-text">
-                <span className="text-primary font-bold">›</span>
-                <span>{step}</span>
+          <div className="space-y-2">
+            {[
+              { num: '01', title: 'Package Received', detail: lastEvent ? `Ingested ID #${lastEvent.package_id}` : 'Awaiting arrival...' },
+              { num: '02', title: 'AVL Traversal Started', detail: lastEvent?.search_path ? `Evaluated ${lastEvent.search_path.length} node(s)` : 'Idle' },
+              { num: '03', title: 'Neighbouring Intervals Checked', detail: 'Predecessor and successor inspected in O(log k)' },
+              { num: '04', title: 'Interval Operation Executed', detail: lastEvent ? `${lastEvent.operation} on interval tree` : 'Idle' },
+              { num: '05', title: 'Tree Rebalanced if Necessary', detail: lastEvent?.rotation ? `${lastEvent.rotation} rotation applied` : 'Height balanced (|bf| ≤ 1)' },
+              { num: '06', title: 'Index Updated & Broadcasted', detail: 'Realtime update synchronized across all devices' }
+            ].map((st, i) => (
+              <div
+                key={i}
+                className={`p-2.5 rounded-lg border transition-all flex items-start gap-3 ${
+                  lastEvent ? 'bg-background border-border text-text' : 'bg-background/40 border-border/50 text-muted'
+                }`}
+              >
+                <span className="font-bold text-primary px-1.5 py-0.5 rounded bg-surface border border-border text-[10px]">
+                  {st.num}
+                </span>
+                <div>
+                  <div className="font-bold text-text text-[11px]">{st.title}</div>
+                  <div className="text-[10px] text-muted">{st.detail}</div>
+                </div>
               </div>
             ))}
           </div>
