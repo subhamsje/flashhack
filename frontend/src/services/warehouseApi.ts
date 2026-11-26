@@ -557,7 +557,17 @@ export const warehouseApi = {
       }
     } catch (e) {}
 
-    // Fall back to Cloud state or in-memory
+    // Fall back to local memory engine first (which was just updated by addArrival)
+    if (engine.intervals.length > 0) {
+      return {
+        success: true,
+        intervals: [...engine.intervals],
+        total_packages: engine.totalPackages,
+        interval_count: engine.intervals.length
+      };
+    }
+
+    // Fall back to Cloud state
     try {
       const { data } = await supabase
         .from('warehouse_state')
