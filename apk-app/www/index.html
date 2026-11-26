@@ -3,25 +3,27 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>Warehouse Arrival Tracker</title>
+  <title>WAREHOUSE — Live Arrival Index</title>
   <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#090d16">
+  <meta name="theme-color" content="#246B5A">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     :root {
-      --bg: #090d16;
-      --surface: #111827;
-      --surface-border: rgba(255, 255, 255, 0.08);
-      --primary: #38bdf8;
-      --primary-gradient: linear-gradient(135deg, #0284c7, #38bdf8);
-      --emerald: #10b981;
-      --emerald-bg: rgba(16, 185, 129, 0.12);
-      --amber: #f59e0b;
-      --amber-bg: rgba(245, 158, 11, 0.12);
-      --text: #f8fafc;
-      --text-muted: #94a3b8;
+      --bg: #F7F7F2;
+      --surface: #FFFFFF;
+      --surface-border: #E2E5DF;
+      --primary: #246B5A;
+      --primary-light: #DDEBE4;
+      --primary-dark: #1B5244;
+      --received: #38866C;
+      --received-bg: rgba(56, 134, 108, 0.12);
+      --missing: #D99A54;
+      --missing-bg: rgba(217, 154, 84, 0.12);
+      --text: #26332F;
+      --text-muted: #77827C;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
@@ -30,499 +32,436 @@
       color: var(--text);
       font-family: 'Plus Jakarta Sans', sans-serif;
       min-height: 100vh;
-      padding: env(safe-area-inset-top, 20px) 16px env(safe-area-inset-bottom, 24px);
+      padding: env(safe-area-inset-top, 16px) 16px env(safe-area-inset-bottom, 24px);
       max-width: 520px;
       margin: 0 auto;
     }
 
-    /* Modern Top Bar */
+    /* Top Bar */
     .topbar {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 12px 0 20px;
+      padding: 12px 0 16px;
+      border-bottom: 1px solid var(--surface-border);
+      margin-bottom: 16px;
     }
-    .brand { display: flex; align-items: center; gap: 12px; }
+    .brand { display: flex; align-items: center; gap: 10px; }
     .brand-icon {
-      width: 40px;
-      height: 40px;
-      border-radius: 12px;
-      background: var(--primary-gradient);
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      background: var(--primary);
       display: flex;
       align-items: center;
       justify-content: center;
-      box-shadow: 0 4px 14px rgba(2, 132, 199, 0.35);
-      font-size: 20px;
+      color: white;
+      font-weight: 800;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 14px;
+      box-shadow: 0 2px 4px rgba(36, 107, 90, 0.2);
     }
-    .brand-title { font-size: 18px; font-weight: 800; letter-spacing: -0.4px; color: #fff; }
-    .brand-sub { font-size: 12px; color: var(--text-muted); font-weight: 500; }
-    
-    .settings-btn {
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid var(--surface-border);
+    .brand-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -0.2px;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .brand-sub {
+      font-size: 10px;
       color: var(--text-muted);
-      border-radius: 12px;
-      width: 40px;
-      height: 40px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 18px;
-      cursor: pointer;
-    }
-    .settings-btn:active { transform: scale(0.95); }
-
-    /* Live Event Pill */
-    .live-pill {
-      background: rgba(56, 189, 248, 0.08);
-      border: 1px solid rgba(56, 189, 248, 0.2);
-      border-radius: 100px;
-      padding: 8px 14px;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: 20px;
-      font-size: 13px;
       font-weight: 600;
-      color: #bae6fd;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
     }
-    .pulse-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: #38bdf8;
-      box-shadow: 0 0 10px #38bdf8;
-      animation: pulse 1.6s infinite;
+    .status-badge {
+      font-size: 11px;
+      font-family: 'JetBrains Mono', monospace;
+      padding: 4px 10px;
+      border-radius: 6px;
+      background: var(--primary-light);
+      color: var(--primary);
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      border: 1px solid rgba(36, 107, 90, 0.2);
     }
-    @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(1.2); } }
 
-    /* Glass Cards */
+    /* Card Panels */
     .card {
       background: var(--surface);
       border: 1px solid var(--surface-border);
-      border-radius: 18px;
-      padding: 20px;
-      margin-bottom: 16px;
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 14px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
     }
-    .card-head {
+    .card-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 12px;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 16px;
     }
-    .card-title {
-      font-size: 14px;
-      font-weight: 700;
-      letter-spacing: 0.4px;
-      text-transform: uppercase;
-      color: var(--text-muted);
+    .card-title span.count {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 10px;
+      background: var(--primary-light);
+      color: var(--primary);
     }
 
-    /* Input & Add Row */
-    .input-group {
-      display: flex;
-      gap: 10px;
-      margin-bottom: 12px;
-    }
-    .main-input {
-      flex: 1;
-      background: rgba(0, 0, 0, 0.35);
-      border: 1px solid var(--surface-border);
-      border-radius: 14px;
-      padding: 14px 16px;
-      color: #fff;
-      font-size: 16px;
-      font-weight: 600;
-      outline: none;
-      transition: border 0.2s;
-    }
-    .main-input:focus { border-color: var(--primary); }
-    .main-input::placeholder { color: #475569; font-weight: 500; font-size: 14px; }
-    
-    .primary-btn {
-      background: var(--primary-gradient);
-      border: none;
-      color: #fff;
-      border-radius: 14px;
-      padding: 0 24px;
-      font-weight: 700;
-      font-size: 15px;
-      cursor: pointer;
-      box-shadow: 0 4px 14px rgba(2, 132, 199, 0.3);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    .primary-btn:active { transform: scale(0.96); }
-
-    .quick-chips {
+    /* Input Controls */
+    .input-row {
       display: flex;
       gap: 8px;
-      flex-wrap: wrap;
     }
-    .chip {
-      background: rgba(255, 255, 255, 0.04);
+    .input-field {
+      flex: 1;
+      background: var(--bg);
       border: 1px solid var(--surface-border);
-      color: #cbd5e1;
-      padding: 8px 14px;
-      border-radius: 10px;
-      font-size: 12px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.2s;
+      border-radius: 8px;
+      padding: 10px 14px;
+      color: var(--text);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.2s;
     }
-    .chip:active { background: rgba(56, 189, 248, 0.15); border-color: var(--primary); color: var(--primary); }
+    .input-field:focus {
+      border-color: var(--primary);
+    }
+    .btn-primary {
+      background: var(--primary);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 18px;
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: background 0.2s;
+    }
+    .btn-primary:active {
+      background: var(--primary-dark);
+    }
 
-    /* Segment Badges */
+    /* Presets Strip */
+    .preset-strip {
+      display: flex;
+      gap: 6px;
+      margin-top: 10px;
+      overflow-x: auto;
+      padding-bottom: 2px;
+    }
+    .btn-chip {
+      background: var(--bg);
+      border: 1px solid var(--surface-border);
+      color: var(--text);
+      border-radius: 6px;
+      padding: 5px 10px;
+      font-size: 11px;
+      font-family: 'JetBrains Mono', monospace;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .btn-chip:active {
+      background: #E8EBE4;
+    }
+
+    /* Range Badges */
     .badge-grid {
       display: flex;
       flex-wrap: wrap;
-      gap: 10px;
+      gap: 8px;
       min-height: 40px;
       align-items: center;
     }
     .range-badge {
-      background: var(--emerald-bg);
-      border: 1px solid rgba(16, 185, 129, 0.35);
-      color: #34d399;
+      background: var(--surface);
+      border: 1px solid rgba(56, 134, 108, 0.4);
+      color: var(--received);
       font-family: 'JetBrains Mono', monospace;
-      font-size: 14px;
       font-weight: 700;
-      padding: 10px 16px;
-      border-radius: 12px;
+      font-size: 12px;
+      padding: 6px 10px;
+      border-radius: 6px;
       display: flex;
       align-items: center;
       gap: 6px;
-      animation: popIn 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     }
     .gap-badge {
-      background: var(--amber-bg);
-      border: 1px solid rgba(245, 158, 11, 0.35);
-      color: #fbbf24;
+      background: var(--missing-bg);
+      border: 1px dashed rgba(217, 154, 84, 0.6);
+      color: var(--missing);
       font-family: 'JetBrains Mono', monospace;
-      font-size: 14px;
-      font-weight: 700;
-      padding: 10px 16px;
-      border-radius: 12px;
+      font-weight: 600;
+      font-size: 12px;
+      padding: 6px 10px;
+      border-radius: 6px;
+    }
+
+    /* Event Timeline */
+    .timeline {
       display: flex;
-      align-items: center;
+      flex-direction: column;
       gap: 6px;
-      animation: popIn 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      max-height: 180px;
+      overflow-y: auto;
     }
-    @keyframes popIn { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
-
-    /* Range Query Row */
-    .query-row {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: 14px;
-    }
-    .small-input {
-      flex: 1;
-      background: rgba(0, 0, 0, 0.35);
-      border: 1px solid var(--surface-border);
-      border-radius: 12px;
-      padding: 12px;
-      color: #fff;
-      font-family: 'JetBrains Mono', monospace;
-      font-weight: 700;
-      text-align: center;
-      font-size: 14px;
-      outline: none;
-    }
-    .query-arrow { color: var(--text-muted); font-size: 14px; font-weight: 700; }
-    .icon-btn {
-      background: rgba(255, 255, 255, 0.08);
-      border: 1px solid var(--surface-border);
-      color: #fff;
-      border-radius: 12px;
-      padding: 12px 18px;
-      font-weight: 700;
-      font-size: 14px;
-      cursor: pointer;
-    }
-
-    /* Modal Sheet for Supabase Settings */
-    .modal-overlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.7);
-      backdrop-filter: blur(6px);
-      display: none;
-      align-items: flex-end;
-      z-index: 100;
-    }
-    .modal-sheet {
-      background: #111827;
-      border-top: 1px solid var(--surface-border);
-      border-radius: 24px 24px 0 0;
-      padding: 24px 20px 32px;
-      width: 100%;
-      max-width: 520px;
-      margin: 0 auto;
-      animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-    }
-    @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
-    .modal-title { font-size: 18px; font-weight: 800; color: #fff; margin-bottom: 4px; }
-    .modal-desc { font-size: 13px; color: var(--text-muted); margin-bottom: 20px; }
-    .field-label { font-size: 12px; font-weight: 700; color: #cbd5e1; margin-bottom: 6px; display: block; }
-
-    /* Timeline log */
-    .timeline { max-height: 140px; overflow-y: auto; padding-right: 4px; }
     .timeline-item {
       display: flex;
-      align-items: center;
       justify-content: space-between;
-      padding: 8px 0;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-      font-size: 13px;
+      align-items: center;
+      padding: 8px 12px;
+      background: var(--bg);
+      border: 1px solid var(--surface-border);
+      border-radius: 6px;
+      font-size: 11px;
+      font-family: 'JetBrains Mono', monospace;
     }
-    .timeline-action { font-family: 'JetBrains Mono', monospace; font-size: 11px; padding: 2px 8px; border-radius: 6px; font-weight: 700; }
-    .tag-bridged { background: rgba(56, 189, 248, 0.15); color: #38bdf8; }
-    .tag-created { background: rgba(16, 185, 129, 0.15); color: #34d399; }
-    .tag-extended { background: rgba(168, 85, 247, 0.15); color: #c084fc; }
-    .tag-duplicate { background: rgba(148, 163, 184, 0.15); color: #94a3b8; }
+    .timeline-action {
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-weight: 700;
+      font-size: 9px;
+    }
+    .tag-created { background: rgba(56, 134, 108, 0.15); color: var(--received); }
+    .tag-extended { background: rgba(36, 107, 90, 0.15); color: var(--primary); }
+    .tag-bridged { background: rgba(217, 154, 84, 0.15); color: var(--missing); }
+    .tag-duplicate { background: #E2E5DF; color: var(--text-muted); }
+
+    /* Actions Toolbar */
+    .action-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .btn-secondary {
+      flex: 1;
+      padding: 8px 12px;
+      border-radius: 6px;
+      border: 1px solid var(--surface-border);
+      background: var(--surface);
+      color: var(--text);
+      font-size: 11px;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 600;
+      cursor: pointer;
+      text-align: center;
+    }
   </style>
 </head>
 <body>
 
-  <!-- Top Bar -->
-  <div class="topbar">
+  <!-- Topbar -->
+  <header class="topbar">
     <div class="brand">
-      <div class="brand-icon">📦</div>
+      <div class="brand-icon">WH</div>
       <div>
-        <div class="brand-title">Warehouse Index</div>
-        <div class="brand-sub">Real-Time Delivery Tracker</div>
+        <div class="brand-title">WAREHOUSE</div>
+        <div class="brand-sub">Live Arrival Index</div>
       </div>
     </div>
-    <button class="settings-btn" onclick="openSettings()" title="Settings">⚙️</button>
-  </div>
+    <div id="sync-indicator" class="status-badge">
+      ● Supabase Connected
+    </div>
+  </header>
 
-  <!-- Status Pill -->
-  <div class="live-pill">
-    <div class="pulse-dot"></div>
-    <span id="status-text">System ready for deliveries</span>
-  </div>
+  <!-- Package Arrival Input Card -->
+  <section class="card">
+    <div class="card-title">
+      <span>Package Ingestion</span>
+      <span id="total-badge" class="count">0 Packages</span>
+    </div>
 
-  <!-- Log Package Card -->
-  <div class="card">
-    <div class="card-head">
-      <span class="card-title">Log Package Delivery</span>
-      <span id="sync-indicator" style="font-size: 11px; color: #10b981; font-weight: 600;">● Local Active</span>
+    <div class="input-row">
+      <input type="number" id="pkg-input" class="input-field" placeholder="Package ID (0 — 10⁹)" min="0">
+      <button class="btn-primary" onclick="handleAdd()">
+        + Add
+      </button>
     </div>
-    <div class="input-group">
-      <input type="text" id="pkg-input" class="main-input" placeholder="Enter ID (e.g. 4 or 1, 3, 7, 2, 6)">
-      <button class="primary-btn" onclick="handleAdd()">Add</button>
-    </div>
-    <div class="quick-chips">
-      <div class="chip" onclick="handleAddNum(4)">+ Bridge (4)</div>
-      <div class="chip" onclick="handleAddNum(5)">+ Bridge (5)</div>
-      <div class="chip" onclick="loadDemo()">⚡ Load [1, 3, 7, 2, 6]</div>
-      <div class="chip" onclick="resetAll()" style="color: #f87171;">Reset</div>
-    </div>
-  </div>
 
-  <!-- Received Intervals Card -->
-  <div class="card">
-    <div class="card-head">
-      <span class="card-title">Received Consecutive Ranges</span>
-      <span id="total-badge" style="font-size: 12px; color: var(--text-muted); font-weight: 700;">0 packages</span>
+    <!-- Quick Presets -->
+    <div class="preset-strip">
+      <button class="btn-chip" onclick="loadSequence([1, 3, 7, 2, 6])">Preset [1,3,7,2,6]</button>
+      <button class="btn-chip" onclick="handleAddNum(4)">Bridge 4</button>
+      <button class="btn-chip" onclick="handleAddNum(5)">Bridge 5</button>
+      <button class="btn-chip" onclick="handleAddNum(1000000)">Sparse 1M</button>
     </div>
-    <div class="badge-grid" id="intervals-container">
-      <span style="color: #64748b; font-size: 13px; font-style: italic;">No packages logged yet</span>
-    </div>
-  </div>
+  </section>
 
-  <!-- Gap Inspector Card -->
-  <div class="card">
-    <div class="card-head">
-      <span class="card-title">Inspect Missing Number Gaps</span>
+  <!-- Live Received Intervals -->
+  <section class="card">
+    <div class="card-title">
+      <span style="color: var(--received);">Received Ranges</span>
+      <span id="range-count" class="count">0 Disjoint</span>
     </div>
-    <div class="query-row">
-      <input type="number" id="gap-min" class="small-input" value="1" placeholder="Min">
-      <span class="query-arrow">→</span>
-      <input type="number" id="gap-max" class="small-input" value="10" placeholder="Max">
-      <button class="icon-btn" onclick="renderGaps()">Find</button>
+    <div id="intervals-container" class="badge-grid">
+      <span style="color: var(--text-muted); font-size: 12px; font-family: 'JetBrains Mono', monospace;">No intervals recorded yet</span>
     </div>
-    <div class="badge-grid" id="gaps-container"></div>
-  </div>
+  </section>
 
-  <!-- Activity Timeline -->
-  <div class="card">
-    <div class="card-head">
-      <span class="card-title">Live Activity Log</span>
+  <!-- Missing Number Ranges -->
+  <section class="card">
+    <div class="card-title">
+      <span style="color: var(--missing);">Missing Ranges (Gaps)</span>
+      <span id="gap-count" class="count">0 Gaps</span>
     </div>
-    <div class="timeline" id="log-list">
-      <div style="color: #64748b; font-size: 13px; font-style: italic;">Recent arrivals will stream here</div>
+
+    <div class="input-row" style="margin-bottom: 10px;">
+      <input type="number" id="gap-min" class="input-field" placeholder="Min ID" style="padding: 6px 10px; font-size: 12px;">
+      <input type="number" id="gap-max" class="input-field" placeholder="Max ID" style="padding: 6px 10px; font-size: 12px;">
+      <button class="btn-secondary" style="flex: 0 0 auto;" onclick="renderGaps()">Query Gaps</button>
     </div>
-  </div>
 
-  <!-- Hidden Settings Modal Sheet -->
-  <div class="modal-overlay" id="settings-modal" onclick="closeSettings(event)">
-    <div class="modal-sheet" onclick="event.stopPropagation()">
-      <div class="modal-title">Cloud Integration</div>
-      <div class="modal-desc">Connect to Supabase to sync live arrivals with your team's central warehouse dashboard.</div>
-      
-      <label class="field-label">Supabase Project URL</label>
-      <input type="text" id="sb-url" class="main-input" placeholder="https://xyz.supabase.co" style="margin-bottom: 12px; width: 100%;">
-
-      <label class="field-label">Anon Public API Key</label>
-      <input type="password" id="sb-key" class="main-input" placeholder="eyJhbGciOi..." style="margin-bottom: 20px; width: 100%;">
-
-      <div style="display: flex; gap: 10px;">
-        <button class="primary-btn" style="flex: 1; padding: 14px;" onclick="saveSupabaseConfig()">Save & Connect</button>
-        <button class="icon-btn" style="padding: 14px;" onclick="document.getElementById('settings-modal').style.display='none'">Close</button>
-      </div>
+    <div id="gaps-container" class="badge-grid">
+      <span style="color: var(--text-muted); font-size: 12px; font-family: 'JetBrains Mono', monospace;">Query a bounded range to view gaps</span>
     </div>
-  </div>
+  </section>
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- Event Log -->
+  <section class="card">
+    <div class="card-title">
+      <span>Arrival Timeline</span>
+      <button onclick="resetAll()" style="background: none; border: none; color: var(--text-muted); font-size: 11px; cursor: pointer; text-decoration: underline;">
+        Clear
+      </button>
+    </div>
+    <div id="log-list" class="timeline">
+      <!-- Ingest events populate here -->
+    </div>
+  </section>
+
+  <!-- JavaScript Logic with Live Supabase Integration -->
   <script>
-    // Live Interval Index
-    class LiveArrivalIndex {
-      constructor() { this.intervals = []; this.totalPackages = 0; }
+    // Supabase Warehouse Credentials (uwixhlszkexsyvjgrcas)
+    const SUPABASE_URL = 'https://uwixhlszkexsyvjgrcas.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV3aXhobHN6a2V4c3l2amdyY2FzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTU2NjcwODMsImV4cCI6MjExMTI0MzA4M30.2E97PdAcJGxsRMyEzuiRGVlIOn7clDKencEnOfe8EyA';
+
+    let supabaseClient = null;
+    let activeSessionId = '5ee5924d-e701-4958-b060-9758a0fd6c13';
+
+    try {
+      if (window.supabase) {
+        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      }
+    } catch (e) {
+      console.warn('Supabase init warning:', e);
+    }
+
+    // Interval Index Engine (Client Mirror)
+    class IntervalIndex {
+      constructor() {
+        this.intervals = []; // [[start, end], ...]
+        this.totalPackages = 0;
+      }
 
       add(id) {
-        id = Number(id);
-        if (isNaN(id) || id < 0) return { success: false, action: 'INVALID' };
-
-        const n = this.intervals.length;
-        if (n === 0) {
-          this.intervals.push([id, id]);
-          this.totalPackages++;
-          return { success: true, action: 'CREATED' };
-        }
-
-        let low = 0, high = n - 1, idx = n;
-        while (low <= high) {
-          const mid = Math.floor((low + high) / 2);
-          if (this.intervals[mid][0] > id) { idx = mid; high = mid - 1; }
-          else { low = mid + 1; }
-        }
-
-        const leftIdx = idx - 1;
-        const rightIdx = idx;
-
-        if (leftIdx >= 0 && id >= this.intervals[leftIdx][0] && id <= this.intervals[leftIdx][1]) {
-          return { success: false, action: 'DUPLICATE' };
+        // 1. Check duplicate
+        for (let i = 0; i < this.intervals.length; i++) {
+          const [s, e] = this.intervals[i];
+          if (id >= s && id <= e) return { action: 'DUPLICATE', intervals: this.intervals };
         }
 
         this.totalPackages++;
-        const canMergeLeft = leftIdx >= 0 && this.intervals[leftIdx][1] + 1 === id;
-        const canMergeRight = rightIdx < n && id + 1 === this.intervals[rightIdx][0];
+        let predIdx = -1;
+        let succIdx = -1;
 
-        if (canMergeLeft && canMergeRight) {
-          this.intervals[leftIdx][1] = this.intervals[rightIdx][1];
-          this.intervals.splice(rightIdx, 1);
-          return { success: true, action: 'BRIDGED' };
-        } else if (canMergeLeft) {
-          this.intervals[leftIdx][1] = id;
-          return { success: true, action: 'EXTENDED' };
-        } else if (canMergeRight) {
-          this.intervals[rightIdx][0] = id;
-          return { success: true, action: 'EXTENDED' };
-        } else {
-          this.intervals.splice(idx, 0, [id, id]);
-          return { success: true, action: 'CREATED' };
+        for (let i = 0; i < this.intervals.length; i++) {
+          if (this.intervals[i][1] + 1 === id) predIdx = i;
+          if (this.intervals[i][0] - 1 === id) succIdx = i;
         }
+
+        // Bridge merge
+        if (predIdx !== -1 && succIdx !== -1) {
+          const newStart = this.intervals[predIdx][0];
+          const newEnd = this.intervals[succIdx][1];
+          this.intervals[predIdx] = [newStart, newEnd];
+          this.intervals.splice(succIdx, 1);
+          return { action: 'BRIDGED', intervals: this.intervals };
+        }
+
+        // Extend right
+        if (predIdx !== -1) {
+          this.intervals[predIdx][1] = id;
+          return { action: 'EXTENDED_RIGHT', intervals: this.intervals };
+        }
+
+        // Extend left
+        if (succIdx !== -1) {
+          this.intervals[succIdx][0] = id;
+          return { action: 'EXTENDED_LEFT', intervals: this.intervals };
+        }
+
+        // Isolated creation
+        this.intervals.push([id, id]);
+        this.intervals.sort((a, b) => a[0] - b[0]);
+        return { action: 'CREATED', intervals: this.intervals };
       }
 
-      getMissingRanges(min, max) {
-        min = Number(min); max = Number(max);
+      getMissingRanges(low, high) {
+        const l = parseInt(low);
+        const h = parseInt(high);
+        if (isNaN(l) || isNaN(h) || l > h) return [];
+
         const gaps = [];
-        let curr = min;
+        let curr = l;
+
         for (const [s, e] of this.intervals) {
-          if (e < min) continue;
-          if (s > max) break;
-          const clippedStart = Math.max(s, min);
-          const clippedEnd = Math.min(e, max);
-          if (curr < clippedStart) gaps.push([curr, clippedStart - 1]);
-          curr = clippedEnd + 1;
+          if (e < curr) continue;
+          if (s > h) break;
+          const clipStart = Math.max(s, curr);
+          const clipEnd = Math.min(e, h);
+          if (curr < clipStart) gaps.push([curr, clipStart - 1]);
+          curr = clipEnd + 1;
         }
-        if (curr <= max) gaps.push([curr, max]);
+        if (curr <= h) gaps.push([curr, h]);
         return gaps;
       }
     }
 
-    const index = new LiveArrivalIndex();
-    let supabaseClient = null;
-
-    function openSettings() { document.getElementById('settings-modal').style.display = 'flex'; }
-    function closeSettings(e) { if (e.target.id === 'settings-modal') document.getElementById('settings-modal').style.display = 'none'; }
-
-    function initSupabase() {
-      const url = localStorage.getItem('supabase_url');
-      const key = localStorage.getItem('supabase_key');
-      if (url && key) {
-        document.getElementById('sb-url').value = url;
-        document.getElementById('sb-key').value = key;
-        try {
-          supabaseClient = window.supabase.createClient(url, key);
-          document.getElementById('sync-indicator').innerHTML = '● Cloud Synced';
-          document.getElementById('sync-indicator').style.color = '#38bdf8';
-        } catch (e) {}
-      }
-    }
-
-    function saveSupabaseConfig() {
-      const url = document.getElementById('sb-url').value.trim();
-      const key = document.getElementById('sb-key').value.trim();
-      if (!url || !key) return;
-      localStorage.setItem('supabase_url', url);
-      localStorage.setItem('supabase_key', key);
-      try {
-        supabaseClient = window.supabase.createClient(url, key);
-        document.getElementById('sync-indicator').innerHTML = '● Cloud Synced';
-        document.getElementById('sync-indicator').style.color = '#38bdf8';
-        document.getElementById('settings-modal').style.display = 'none';
-        setStatus('Connected to Supabase Cloud');
-      } catch (e) {
-        alert('Invalid credentials');
-      }
-    }
-
-    function setStatus(msg) {
-      document.getElementById('status-text').innerText = msg;
-    }
-
-    function logTimeline(id, action) {
-      const list = document.getElementById('log-list');
-      const item = document.createElement('div');
-      item.className = 'timeline-item';
-      
-      const tagClass = 'tag-' + action.toLowerCase();
-      item.innerHTML = `
-        <span style="color: #e2e8f0; font-weight: 600;">Package #${id}</span>
-        <span class="timeline-action ${tagClass}">${action}</span>
-      `;
-      list.prepend(item);
-    }
+    const index = new IntervalIndex();
 
     async function syncToSupabase(id, action) {
       if (!supabaseClient) return;
       try {
         await supabaseClient.from('package_arrivals').insert([{
-          session_id: '00000000-0000-0000-0000-000000000001',
+          session_id: activeSessionId,
           package_id: id,
           operation_type: action
         }]);
       } catch (err) {
-        console.error('Sync err:', err);
+        console.warn('Supabase sync note:', err);
       }
     }
 
     function renderIntervals() {
       const container = document.getElementById('intervals-container');
-      document.getElementById('total-badge').innerText = `${index.totalPackages} packages`;
+      document.getElementById('total-badge').innerText = `${index.totalPackages} Packages`;
+      document.getElementById('range-count').innerText = `${index.intervals.length} Disjoint`;
+
       if (index.intervals.length === 0) {
-        container.innerHTML = '<span style="color: #64748b; font-size: 13px; font-style: italic;">No packages logged yet</span>';
+        container.innerHTML = '<span style="color: var(--text-muted); font-size: 12px; font-family: \'JetBrains Mono\', monospace;">No intervals recorded yet</span>';
         return;
       }
-      container.innerHTML = index.intervals.map(([s, e]) => 
-        `<div class="range-badge"><span>📦</span> ${s === e ? `[ ${s} ]` : `[ ${s} — ${e} ]`}</div>`
-      ).join('');
+
+      container.innerHTML = index.intervals.map(([s, e]) => `
+        <div class="range-badge">
+          <span>[ ${s} ━━━ ${e} ]</span>
+          <span style="font-size: 9px; opacity: 0.8; font-family: sans-serif;">(${e - s + 1})</span>
+        </div>
+      `).join('');
     }
 
     function renderGaps() {
@@ -530,40 +469,64 @@
       const max = document.getElementById('gap-max').value;
       const gaps = index.getMissingRanges(min, max);
       const container = document.getElementById('gaps-container');
+      document.getElementById('gap-count').innerText = `${gaps.length} Gaps`;
+
       if (gaps.length === 0) {
-        container.innerHTML = '<span style="color: #34d399; font-size: 13px; font-weight: 600;">✓ Complete sequence! No missing packages.</span>';
+        container.innerHTML = '<span style="color: var(--received); font-size: 12px; font-weight: 600;">✓ Complete sequence! No missing packages in range.</span>';
         return;
       }
-      container.innerHTML = gaps.map(([s, e]) => 
-        `<div class="gap-badge"><span>⚠️</span> ${s === e ? `Gap: ${s}` : `Gap: ${s} — ${e}`}</div>`
-      ).join('');
+
+      container.innerHTML = gaps.map(([s, e]) => `
+        <div class="gap-badge">
+          <span>[ ${s} ━ ${e} ]</span>
+          <span style="font-size: 9px; opacity: 0.8; font-family: sans-serif;">(-${e - s + 1})</span>
+        </div>
+      `).join('');
+    }
+
+    function logTimeline(id, action) {
+      const list = document.getElementById('log-list');
+      const item = document.createElement('div');
+      item.className = 'timeline-item';
+      
+      let tagClass = 'tag-created';
+      if (action.includes('EXTENDED')) tagClass = 'tag-extended';
+      else if (action === 'BRIDGED') tagClass = 'tag-bridged';
+      else if (action === 'DUPLICATE') tagClass = 'tag-duplicate';
+
+      item.innerHTML = `
+        <span style="font-weight: 600; color: var(--text);">Package #${id}</span>
+        <span class="timeline-action ${tagClass}">${action}</span>
+      `;
+      list.prepend(item);
     }
 
     function handleAddNum(num) {
       const res = index.add(num);
-      setStatus(`Package #${num} → ${res.action}`);
       logTimeline(num, res.action);
       syncToSupabase(num, res.action);
       renderIntervals();
-      renderGaps();
+
+      if (document.getElementById('gap-min').value && document.getElementById('gap-max').value) {
+        renderGaps();
+      }
     }
 
     function handleAdd() {
       const input = document.getElementById('pkg-input');
       const val = input.value.trim();
       if (!val) return;
-      const ids = val.split(/[,\s]+/).filter(Boolean);
-      ids.forEach(x => {
-        const n = parseInt(x, 10);
-        if (!isNaN(n)) handleAddNum(n);
-      });
-      input.value = '';
+      const num = parseInt(val, 10);
+      if (!isNaN(num) && num >= 0) {
+        handleAddNum(num);
+        input.value = '';
+      }
     }
 
-    function loadDemo() {
-      [1, 3, 7, 2, 6].forEach(x => handleAddNum(x));
-      document.getElementById('gap-min').value = 1;
-      document.getElementById('gap-max').value = 7;
+    function loadSequence(arr) {
+      arr.forEach(x => handleAddNum(x));
+      document.getElementById('gap-min').value = arr[0];
+      document.getElementById('gap-max').value = Math.max(...arr);
       renderGaps();
     }
 
@@ -571,12 +534,16 @@
       index.intervals = [];
       index.totalPackages = 0;
       document.getElementById('log-list').innerHTML = '';
-      setStatus('System reset. Ready for deliveries.');
+      document.getElementById('gap-min').value = '';
+      document.getElementById('gap-max').value = '';
       renderIntervals();
       renderGaps();
     }
 
-    initSupabase();
+    // Enter key listener
+    document.getElementById('pkg-input').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') handleAdd();
+    });
   </script>
 </body>
 </html>
