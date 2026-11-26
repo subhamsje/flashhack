@@ -386,53 +386,229 @@ class LocalWarehouseEngine {
 
 const engine = new LocalWarehouseEngine();
 
+export const WAREHOUSE_ID = '5ee5924d-e701-4958-b060-9758a0fd6c13';
+
+// Cloud state synchronization helper
+async function persistWarehouseState(
+  intervals: Interval[],
+  totalPackages: number,
+  operationType: string,
+  packageId: number | null,
+  metadata: any = {}
+) {
+  try {
+    // 1. Fetch current version to increment monotonically
+    const { data: currState } = await supabase
+      .from('warehouse_state')
+      .select('state_version')
+      .eq('warehouse_id', WAREHOUSE_ID)
+      .single();
+
+    const nextVersion = (currState?.state_version || 1) + 1;
+
+    // 2. Persist authoritative warehouse state
+    await supabase
+      .from('warehouse_state')
+      .upsert({
+        warehouse_id: WAREHOUSE_ID,
+        state_version: nextVersion,
+        received_intervals: intervals,
+        interval_count: intervals.length,
+        total_received: totalPackages,
+        tree_height: Math.ceil(Math.log2(Math.max(1, intervals.length) + 1)),
+        updated_at: new Date().toISOString(),
+        updated_by: 'operator'
+      });
+
+    // 3. Persist package record if packageId present
+    if (packageId !== null && operationType !== 'PACKAGE_REMOVED') {
+      await supabase
+        .from('packages')
+        .upsert({
+          warehouse_id: WAREHOUSE_ID,
+          package_id: packageId,
+          created_by: 'operator'
+        }, { onConflict: 'warehouse_id,package_id' });
+    } else if (packageId !== null && operationType === 'PACKAGE_REMOVED') {
+      await supabase
+        .from('packages')
+        .delete()
+        .eq('warehouse_id', WAREHOUSE_ID)
+        .eq('package_id', packageId);
+    }
+
+    // 4. Record operation history
+    await supabase
+      .from('operation_history')
+      .insert([{
+        warehouse_id: WAREHOUSE_ID,
+        operation_type: operationType,
+        package_id: packageId,
+        operation_status: 'COMMITTED',
+        state_version: nextVersion,
+        performed_by: 'operator',
+        metadata: { ...metadata, total_packages: totalPackages, interval_count: intervals.length }
+      }]);
+  } catch (err) {
+    console.warn('Cloud persistence note:', err);
+  }
+}
+
 export const warehouseApi = {
   async addArrival(packageId: number): Promise<ArrivalResponse> {
+    let resData: ArrivalResponse;
     try {
       const res = await fetch(`/api/arrivals`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ package_id: packageId })
       });
-      if (res.ok) return await res.json();
-    } catch (e) {}
-    return engine.add(packageId);
+      if (res.ok) {
+        resData = await res.json();
+      } else {
+        resData = engine.add(packageId);
+      }
+    } catch (e) {
+      resData = engine.add(packageId);
+    }
+
+    // Persist to Supabase Cloud
+    await persistWarehouseState(
+      resData.current_intervals,
+      (resData as any).total_packages ?? resData.new_interval_count,
+      resData.operation,
+      packageId,
+      { execution_time_ns: resData.execution_time_ns }
+    );
+
+    return resData;
   },
 
   async addBatch(ids: number[]): Promise<{ success: boolean; unique_added: number }> {
     let count = 0;
-    for (const id of ids) {
-      const res = engine.add(id);
-      if (res.operation !== 'DUPLICATE') count++;
+    try {
+      const res = await fetch(`/api/arrivals/batch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ package_ids: ids })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        count = data.unique_added ?? ids.length;
+      }
+    } catch (e) {}
+
+    if (count === 0) {
+      for (const id of ids) {
+        const res = engine.add(id);
+        if (res.operation !== 'DUPLICATE') count++;
+      }
     }
+
+    const curr = await this.getIntervals();
+    await persistWarehouseState(
+      curr.intervals,
+      curr.total_packages,
+      'BATCH_IMPORT',
+      null,
+      { count: ids.length, ids: ids.slice(0, 100) }
+    );
+
     return { success: true, unique_added: count };
   },
 
   async removePackage(packageId: number): Promise<RemovalResponse> {
+    let resData: RemovalResponse;
     try {
       const res = await fetch(`/api/packages/remove`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ package_id: packageId })
       });
-      if (res.ok) return await res.json();
-    } catch (e) {}
-    // Fallback in-memory removal
-    const res = engine.remove(packageId);
-    return res;
+      if (res.ok) {
+        resData = await res.json();
+      } else {
+        resData = engine.remove(packageId);
+      }
+    } catch (e) {
+      resData = engine.remove(packageId);
+    }
+
+    // Persist to Supabase Cloud
+    await persistWarehouseState(
+      resData.current_intervals,
+      resData.total_packages,
+      'PACKAGE_REMOVED',
+      packageId,
+      { operation: resData.operation }
+    );
+
+    return resData;
   },
 
   async getIntervals(): Promise<{ success: boolean; intervals: Interval[]; total_packages: number; interval_count: number }> {
     try {
       const res = await fetch(`/api/intervals`);
-      if (res.ok) return await res.json();
+      if (res.ok) {
+        const data = await res.json();
+        engine.intervals = [...data.intervals];
+        engine.totalPackages = data.total_packages;
+        return data;
+      }
     } catch (e) {}
+
+    // Fall back to Cloud state or in-memory
+    try {
+      const { data } = await supabase
+        .from('warehouse_state')
+        .select('*')
+        .eq('warehouse_id', WAREHOUSE_ID)
+        .single();
+      if (data && data.received_intervals) {
+        engine.intervals = data.received_intervals as Interval[];
+        engine.totalPackages = data.total_received ?? 0;
+        return {
+          success: true,
+          intervals: engine.intervals,
+          total_packages: engine.totalPackages,
+          interval_count: engine.intervals.length
+        };
+      }
+    } catch (e) {}
+
     return {
       success: true,
       intervals: [...engine.intervals],
       total_packages: engine.totalPackages,
       interval_count: engine.intervals.length
     };
+  },
+
+  async reconstructFromCloud(): Promise<boolean> {
+    try {
+      const { data } = await supabase
+        .from('warehouse_state')
+        .select('*')
+        .eq('warehouse_id', WAREHOUSE_ID)
+        .single();
+
+      if (data && data.received_intervals) {
+        const ivs = data.received_intervals as Interval[];
+        engine.intervals = [...ivs];
+        engine.totalPackages = data.total_received ?? 0;
+
+        // Post to C engine to reconstruct backend tree
+        await fetch('/api/state/reconstruct', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ intervals: ivs })
+        });
+        return true;
+      }
+    } catch (err) {
+      console.warn('Reconstruction note:', err);
+    }
+    return false;
   },
 
   async queryGaps(low: number, high: number): Promise<{ success: boolean; gaps: Interval[]; received: Interval[] }> {

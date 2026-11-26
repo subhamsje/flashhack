@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { NavLink, Outlet, Link } from 'react-router-dom';
-import { Layers, ArrowRight, User, LogOut, X, Database, ShieldCheck, Check } from 'lucide-react';
+import { Layers, ArrowRight, User, LogOut, X, Database, ShieldCheck, Check, Wifi, RefreshCw } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
+import { useRealtimeSync } from '../hooks/useRealtimeSync';
 import { isSupabaseConfigured } from '../services/supabase';
 
 export const AppLayout: React.FC = () => {
   const { user, signOut, signIn, signUp, enterAsOperator, isConfigured } = useAuth();
+  const { connectionState, onlineDevices, lastSyncTime, currentVersion } = useRealtimeSync();
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
@@ -17,6 +19,38 @@ export const AppLayout: React.FC = () => {
   const [sbUrlInput, setSbUrlInput] = useState(localStorage.getItem('VITE_SUPABASE_URL') || '');
   const [sbKeyInput, setSbKeyInput] = useState(localStorage.getItem('VITE_SUPABASE_ANON_KEY') || '');
   const [savedConfigMsg, setSavedConfigMsg] = useState(false);
+
+  const getStatusBadge = () => {
+    switch (connectionState) {
+      case 'CONNECTED':
+        return {
+          bg: 'bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-700/60',
+          dot: 'bg-emerald-600 dark:bg-emerald-400',
+          label: 'CONNECTED'
+        };
+      case 'SYNCING':
+        return {
+          bg: 'bg-blue-50 text-blue-800 border-blue-300 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-700/60',
+          dot: 'bg-blue-600 dark:bg-blue-400 animate-pulse',
+          label: 'SYNCING'
+        };
+      case 'RECONNECTING':
+      case 'OFFLINE':
+        return {
+          bg: 'bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-700/60',
+          dot: 'bg-amber-600 dark:bg-amber-400',
+          label: connectionState
+        };
+      default:
+        return {
+          bg: 'bg-rose-50 text-rose-800 border-rose-300 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-700/60',
+          dot: 'bg-rose-600 dark:bg-rose-400',
+          label: 'ERROR'
+        };
+    }
+  };
+
+  const status = getStatusBadge();
 
   const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -121,16 +155,39 @@ export const AppLayout: React.FC = () => {
             </NavLink>
           </nav>
 
-          {/* Right Controls */}
+          {/* Right Controls: Minimalist Multi-Device Cloud Status */}
           <div className="flex items-center gap-3">
-            {/* Supabase status badge */}
             <div
-              className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-mono rounded border bg-received/10 text-received border-received/30 shadow-sm"
-              title="Supabase Database Live Connected"
+              className={`flex items-center gap-2 px-2.5 py-1 text-xs font-mono rounded border shadow-sm transition ${status.bg}`}
+              title={`Warehouse: Main Distribution\nAccount: ${user?.email || 'operator@warehouse.io'}\nState Version: v${currentVersion}\nLast Synced: ${lastSyncTime}\nOnline Devices: ${onlineDevices}`}
             >
-              <Database className="w-3.5 h-3.5" />
-              <span>Supabase Live Sync</span>
+              <span className={`w-2 h-2 rounded-full ${status.dot}`} />
+              <span className="font-bold">{status.label}</span>
+              <span className="text-[10px] opacity-75 hidden sm:inline">v{currentVersion}</span>
+              <span className="text-[10px] opacity-60 hidden md:inline">({onlineDevices} online)</span>
             </div>
+
+            {user ? (
+              <div className="flex items-center gap-1.5 text-xs font-mono text-muted">
+                <span className="hidden lg:inline text-[11px] font-semibold text-text truncate max-w-[140px]">
+                  {user.email || 'operator@warehouse.io'}
+                </span>
+                <button
+                  onClick={() => signOut()}
+                  className="p-1.5 rounded hover:bg-background border border-transparent hover:border-border text-muted hover:text-text transition"
+                  title="Sign out"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowAuthModal(true)}
+                className="px-2.5 py-1 text-xs font-mono font-medium rounded bg-primary text-white hover:bg-primary-dark transition shadow-sm"
+              >
+                Sign In
+              </button>
+            )}
           </div>
         </div>
       </header>

@@ -350,7 +350,8 @@
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV3aXhobHN6a2V4c3l2amdyY2FzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTU2NjcwODMsImV4cCI6MjExMTI0MzA4M30.2E97PdAcJGxsRMyEzuiRGVlIOn7clDKencEnOfe8EyA';
 
     let supabaseClient = null;
-    let activeSessionId = '5ee5924d-e701-4958-b060-9758a0fd6c13';
+    const activeWarehouseId = '5ee5924d-e701-4958-b060-9758a0fd6c13';
+    let currentVersion = 1;
 
     try {
       if (window.supabase) {
@@ -367,8 +368,16 @@
         this.totalPackages = 0;
       }
 
+      setFromObjects(ivs, total) {
+        this.intervals = ivs.map(i => [i.start, i.end]);
+        this.totalPackages = total !== undefined ? total : this.intervals.reduce((acc, cur) => acc + (cur[1] - cur[0] + 1), 0);
+      }
+
+      toObjects() {
+        return this.intervals.map(([start, end]) => ({ start, end }));
+      }
+
       add(id) {
-        // 1. Check duplicate
         for (let i = 0; i < this.intervals.length; i++) {
           const [s, e] = this.intervals[i];
           if (id >= s && id <= e) return { action: 'DUPLICATE', intervals: this.intervals };
@@ -383,7 +392,6 @@
           if (this.intervals[i][0] - 1 === id) succIdx = i;
         }
 
-        // Bridge merge
         if (predIdx !== -1 && succIdx !== -1) {
           const newStart = this.intervals[predIdx][0];
           const newEnd = this.intervals[succIdx][1];
@@ -392,22 +400,49 @@
           return { action: 'BRIDGED', intervals: this.intervals };
         }
 
-        // Extend right
         if (predIdx !== -1) {
           this.intervals[predIdx][1] = id;
           return { action: 'EXTENDED_RIGHT', intervals: this.intervals };
         }
 
-        // Extend left
         if (succIdx !== -1) {
           this.intervals[succIdx][0] = id;
           return { action: 'EXTENDED_LEFT', intervals: this.intervals };
         }
 
-        // Isolated creation
         this.intervals.push([id, id]);
         this.intervals.sort((a, b) => a[0] - b[0]);
         return { action: 'CREATED', intervals: this.intervals };
+      }
+
+      remove(id) {
+        let targetIdx = -1;
+        for (let i = 0; i < this.intervals.length; i++) {
+          const [s, e] = this.intervals[i];
+          if (id >= s && id <= e) {
+            targetIdx = i;
+            break;
+          }
+        }
+        if (targetIdx === -1) return { action: 'NOT_FOUND', intervals: this.intervals };
+
+        this.totalPackages = Math.max(0, this.totalPackages - 1);
+        const [s, e] = this.intervals[targetIdx];
+
+        if (s === e) {
+          this.intervals.splice(targetIdx, 1);
+          return { action: 'NODE_DELETED', intervals: this.intervals };
+        } else if (id === s) {
+          this.intervals[targetIdx] = [s + 1, e];
+          return { action: 'SHRUNK_LEFT', intervals: this.intervals };
+        } else if (id === e) {
+          this.intervals[targetIdx] = [s, e - 1];
+          return { action: 'SHRUNK_RIGHT', intervals: this.intervals };
+        } else {
+          this.intervals[targetIdx] = [s, id - 1];
+          this.intervals.splice(targetIdx + 1, 0, [id + 1, e]);
+          return { action: 'SPLIT', intervals: this.intervals };
+        }
       }
 
       getMissingRanges(low, high) {
@@ -417,6 +452,124 @@
 
         const gaps = [];
         let curr = l;
+
+        for (const [s, e] of this.intervals) {
+          if (e < curr) continue;
+          if (s > h) break;
+          const clipStart = Math.max(s, curr);
+          const clipEnd = Math.min(e, h);
+          if (curr < clipStart) gaps.push([curr, clipStart - 1]);
+          curr = clipEnd + 1;
+        }
+        if (curr <= h) gaps.push([curr, h]);
+        return gaps;
+      }
+    }
+
+    const index = new IntervalIndex();
+
+    async function syncToSupabase(id, action) {
+      if (!supabaseClient) return;
+      try {
+        currentVersion++;
+        // 1. Persist Authoritative Warehouse State
+        await supabaseClient.from('warehouse_state').upsert({
+          warehouse_id: activeWarehouseId,
+          state_version: currentVersion,
+          received_intervals: index.toObjects(),
+          interval_count: index.intervals.length,
+          total_received: index.totalPackages,
+          updated_at: new Date().toISOString(),
+          updated_by: 'mobile-apk'
+        });
+
+        // 2. Persist package record
+        if (action !== 'PACKAGE_REMOVED') {
+          await supabaseClient.from('packages').upsert({
+            warehouse_id: activeWarehouseId,
+            package_id: id,
+            created_by: 'mobile-apk'
+          }, { onConflict: 'warehouse_id,package_id' });
+        } else {
+          await supabaseClient.from('packages').delete().eq('warehouse_id', activeWarehouseId).eq('package_id', id);
+        }
+
+        // 3. Log Activity
+        await supabaseClient.from('warehouse_activity_logs').insert([{
+          session_id: activeWarehouseId,
+          action: action === 'PACKAGE_REMOVED' ? 'PACKAGE_REMOVED' : 'PACKAGE_ADDED',
+          package_id: id,
+          device_id: 'Mobile-APK',
+          user_id: 'operator@warehouse.io',
+          metadata: { action }
+        }]);
+      } catch (err) {
+        console.warn('Supabase sync note:', err);
+      }
+    }
+
+    // Hydrate Authoritative State from Supabase Cloud on Startup
+    async function loadCloudState() {
+      if (!supabaseClient) return;
+      try {
+        const { data, error } = await supabaseClient
+          .from('warehouse_state')
+          .select('*')
+          .eq('warehouse_id', activeWarehouseId)
+          .single();
+
+        if (data && data.received_intervals) {
+          currentVersion = data.state_version || 1;
+          index.setFromObjects(data.received_intervals, data.total_received);
+          renderIntervals();
+          if (document.getElementById('gap-min').value && document.getElementById('gap-max').value) {
+            renderGaps();
+          }
+        }
+      } catch (e) {
+        console.warn('Initial cloud hydration note:', e);
+      }
+    }
+
+    // Setup Supabase Realtime Subscription for APK
+    function initRealtime() {
+      if (!supabaseClient) return;
+
+      const channel = supabaseClient.channel(`apk-${activeWarehouseId}`, {
+        config: { presence: { key: 'Mobile-APK' } }
+      });
+
+      // Listen for cloud state updates (e.g., changes made on laptop)
+      channel.on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'warehouse_state',
+        filter: `warehouse_id=eq.${activeWarehouseId}`
+      }, (payload) => {
+        const newState = payload.new;
+        if (newState && newState.received_intervals) {
+          if (newState.state_version >= currentVersion) {
+            currentVersion = newState.state_version;
+            index.setFromObjects(newState.received_intervals, newState.total_received);
+            renderIntervals();
+            if (document.getElementById('gap-min').value && document.getElementById('gap-max').value) {
+              renderGaps();
+            }
+          }
+        }
+      });
+
+      channel.subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          await channel.track({ online_at: new Date().toISOString(), device: 'Mobile-APK' });
+        }
+      });
+    }
+
+    // Initialize on page load
+    loadCloudState().then(() => {
+      initRealtime();
+    });
 
         for (const [s, e] of this.intervals) {
           if (e < curr) continue;

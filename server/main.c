@@ -715,6 +715,44 @@ static void handle_post_trace_add(int client_fd, const char *body) {
     warehouse_free_tree_snapshot(snap);
 }
 
+/* POST /api/state/reconstruct - Reconstruct C AVL tree from database interval state */
+static void handle_post_reconstruct(int client_fd, const char *body) {
+    /* Expecting JSON: {"intervals": [{"start": 1, "end": 3}, ...]} */
+    pthread_mutex_lock(&warehouse_mutex);
+    warehouse_clear(global_warehouse);
+    history_count = 0;
+
+    const char *p = strstr(body, "\"intervals\"");
+
+    if (p) {
+        const char *curr = p;
+        while ((curr = strstr(curr, "{\"start\":")) != NULL) {
+            long long s = 0, e = 0;
+            if (sscanf(curr, "{\"start\":%lld,\"end\":%lld}", &s, &e) == 2) {
+                if (s >= 0 && e >= s) {
+                    for (long long pid = s; pid <= e && (pid - s) <= 50000; pid++) {
+                        warehouse_add(global_warehouse, (package_id_t)pid);
+                    }
+                    if (e > s + 50000) {
+                        warehouse_add(global_warehouse, (package_id_t)e);
+                    }
+                }
+            }
+            curr += 9;
+        }
+    }
+
+    size_t count = warehouse_interval_count(global_warehouse);
+    size_t total = warehouse_total_packages(global_warehouse);
+    pthread_mutex_unlock(&warehouse_mutex);
+
+    char resp[512];
+    snprintf(resp, sizeof(resp),
+        "{\"success\":true,\"reconstructed\":true,\"interval_count\":%zu,\"total_packages\":%zu}",
+        count, total);
+    send_json(client_fd, 200, resp);
+}
+
 static void handle_client(int client_fd) {
     char buffer[BUFFER_SIZE];
     ssize_t bytes_read = read(client_fd, buffer, sizeof(buffer) - 1);
@@ -751,6 +789,8 @@ static void handle_client(int client_fd) {
         handle_post_undo(client_fd);
     } else if (strcmp(method, "POST") == 0 && strcmp(uri, "/api/redo") == 0) {
         handle_post_redo(client_fd);
+    } else if (strcmp(method, "POST") == 0 && (strcmp(uri, "/api/state/reconstruct") == 0 || strcmp(uri, "/api/reconstruct") == 0)) {
+        handle_post_reconstruct(client_fd, body);
     } else if ((strcmp(method, "DELETE") == 0 && strncmp(uri, "/api/packages", 13) == 0) ||
                (strcmp(method, "POST") == 0 && strcmp(uri, "/api/packages/remove") == 0)) {
         handle_delete_package(client_fd, body, uri);

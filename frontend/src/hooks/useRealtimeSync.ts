@@ -1,8 +1,8 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { supabase } from '../services/supabase';
-import { warehouseApi, type Interval, type TreeResponse, type ActivityLog } from '../services/warehouseApi';
+import { warehouseApi, WAREHOUSE_ID, type Interval, type TreeResponse, type ActivityLog } from '../services/warehouseApi';
 
-export const SHARED_SESSION_ID = '5ee5924d-e701-4958-b060-9758a0fd6c13';
+export const SHARED_SESSION_ID = WAREHOUSE_ID;
 
 // Stable device fingerprint
 const getDeviceId = () => {
@@ -20,11 +20,12 @@ const getDeviceId = () => {
 
 export type ConnectionState = 'CONNECTED' | 'SYNCING' | 'OFFLINE' | 'RECONNECTING';
 
-export const useRealtimeSync = () => {
+export const useRealtimeSync = (onStateSync?: (intervals: Interval[]) => void) => {
   const [connectionState, setConnectionState] = useState<ConnectionState>('CONNECTED');
   const [onlineDevices, setOnlineDevices] = useState<number>(1);
   const [lastSyncTime, setLastSyncTime] = useState<string>('Just now');
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
+  const [currentVersion, setCurrentVersion] = useState<number>(1);
   const deviceId = useRef(getDeviceId());
 
   // Function to log activity to Supabase and broadcast
@@ -55,6 +56,30 @@ export const useRealtimeSync = () => {
     }
   }, []);
 
+  // Authoritative State Reconciliation
+  const reconcileAuthoritativeState = useCallback(async () => {
+    setConnectionState('SYNCING');
+    try {
+      const { data } = await supabase
+        .from('warehouse_state')
+        .select('*')
+        .eq('warehouse_id', WAREHOUSE_ID)
+        .single();
+
+      if (data && data.received_intervals) {
+        setCurrentVersion(data.state_version ?? 1);
+        await warehouseApi.reconstructFromCloud();
+        if (onStateSync) {
+          onStateSync(data.received_intervals as Interval[]);
+        }
+      }
+      setLastSyncTime(new Date().toLocaleTimeString());
+      setConnectionState('CONNECTED');
+    } catch (e) {
+      setConnectionState('OFFLINE');
+    }
+  }, [onStateSync]);
+
   // Fetch initial activity logs
   const fetchLogs = useCallback(async () => {
     try {
@@ -73,13 +98,40 @@ export const useRealtimeSync = () => {
 
   useEffect(() => {
     fetchLogs();
+    reconcileAuthoritativeState();
 
     // Setup Supabase Realtime channel for table changes & presence
-    const channel = supabase.channel(`warehouse-${SHARED_SESSION_ID}`, {
+    const channel = supabase.channel(`warehouse-${WAREHOUSE_ID}`, {
       config: { presence: { key: deviceId.current } }
     });
 
-    // 1. Listen for new activity logs across all devices
+    // 1. Listen for Authoritative Warehouse State changes (Instant multi-device sync)
+    channel.on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'warehouse_state',
+        filter: `warehouse_id=eq.${WAREHOUSE_ID}`
+      },
+      async (payload) => {
+        const newState = payload.new as any;
+        if (newState && newState.received_intervals) {
+          // Monotonic state version checking
+          if (newState.state_version >= currentVersion) {
+            setCurrentVersion(newState.state_version);
+            await warehouseApi.reconstructFromCloud();
+            if (onStateSync) {
+              onStateSync(newState.received_intervals as Interval[]);
+            }
+            setLastSyncTime(new Date().toLocaleTimeString());
+            setConnectionState('CONNECTED');
+          }
+        }
+      }
+    );
+
+    // 2. Listen for new activity logs across all devices
     channel.on(
       'postgres_changes',
       {
@@ -98,7 +150,7 @@ export const useRealtimeSync = () => {
       }
     );
 
-    // 2. Track Realtime Presence (Device count)
+    // 3. Track Realtime Presence (Device count)
     channel.on('presence', { event: 'sync' }, () => {
       const state = channel.presenceState();
       const count = Object.keys(state).length;
@@ -129,18 +181,32 @@ export const useRealtimeSync = () => {
       }
     });
 
+    // Online/Offline network event listeners
+    const handleOnline = () => {
+      reconcileAuthoritativeState();
+    };
+    const handleOffline = () => {
+      setConnectionState('OFFLINE');
+    };
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
     return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
       channel.unsubscribe();
     };
-  }, [fetchLogs]);
+  }, [fetchLogs, reconcileAuthoritativeState, currentVersion, onStateSync]);
 
   return {
     connectionState,
     onlineDevices,
     lastSyncTime,
+    currentVersion,
     activityLogs,
     deviceId: deviceId.current,
     logActivity,
-    refreshLogs: fetchLogs
+    refreshLogs: fetchLogs,
+    reconcile: reconcileAuthoritativeState
   };
 };

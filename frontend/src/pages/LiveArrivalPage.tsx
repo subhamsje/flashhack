@@ -23,7 +23,20 @@ export const LiveArrivalPage: React.FC = () => {
     'Waiting for package arrivals. Enter an ID above to trigger C engine AVL tree insertion.'
   ]);
 
-  const { logActivity, onlineDevices, connectionState } = useRealtimeSync();
+  const { logActivity, onlineDevices, connectionState } = useRealtimeSync(async (syncedIntervals) => {
+    // When another device updates intervals, automatically re-render local view
+    setIntervals(syncedIntervals);
+    if (syncedIntervals.length > 0) {
+      const minVal = syncedIntervals[0].start;
+      const maxVal = syncedIntervals[syncedIntervals.length - 1].end;
+      const gapRes = await warehouseApi.queryGaps(minVal, maxVal);
+      if (gapRes.success) setGaps(gapRes.gaps);
+    } else {
+      setGaps([]);
+    }
+    const tRes = await warehouseApi.getTree();
+    if (tRes.success) setTreeData(tRes);
+  });
 
   const handleUndo = async () => {
     setLoading(true);
