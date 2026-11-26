@@ -105,39 +105,14 @@ export const AppLayout: React.FC = () => {
 
           {/* Right Controls */}
           <div className="flex items-center gap-3">
-            {/* Supabase status badge / connector */}
-            <button
-              onClick={() => setShowConfigModal(true)}
-              className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-mono rounded border transition ${
-                isConfigured
-                  ? 'bg-received/10 text-received border-received/30 hover:bg-received/20'
-                  : 'bg-primary-light/40 text-primary border-primary/20 hover:bg-primary-light'
-              }`}
-              title="Supabase Database Configuration"
+            {/* Supabase status badge */}
+            <div
+              className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-mono rounded border bg-received/10 text-received border-received/30 shadow-sm"
+              title="Supabase Database Live Connected"
             >
               <Database className="w-3.5 h-3.5" />
-              <span>{isConfigured ? 'Supabase Connected' : 'Connect Supabase'}</span>
-            </button>
-
-            {user ? (
-              <div className="flex items-center gap-2 text-xs font-mono">
-                <span className="text-muted hidden lg:inline">{user.email}</span>
-                <button
-                  onClick={() => signOut()}
-                  className="p-1.5 text-muted hover:text-text hover:bg-background rounded border border-border transition"
-                  title="Sign out"
-                >
-                  <LogOut className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={() => setShowAuthModal(true)}
-                className="px-3 py-1.5 text-xs font-mono bg-primary hover:bg-primary-dark text-white rounded transition shadow-sm"
-              >
-                Sign In
-              </button>
-            )}
+              <span>Supabase Live Sync</span>
+            </div>
           </div>
         </div>
       </header>
