@@ -90,6 +90,16 @@ export const AppLayout: React.FC = () => {
               Range Analysis
             </NavLink>
             <NavLink
+              to="/activity-log"
+              className={({ isActive }) =>
+                `transition pb-1 border-b-2 ${
+                  isActive ? 'border-primary text-primary font-bold' : 'border-transparent text-muted hover:text-text'
+                }`
+              }
+            >
+              Activity Log
+            </NavLink>
+            <NavLink
               to="/algorithm"
               className={({ isActive }) =>
                 `transition pb-1 border-b-2 ${

@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { PackagePlus, RotateCcw, Zap, Layers, Info, History, ArrowRight } from 'lucide-react';
-import { warehouseApi, type ArrivalResponse, type Interval, type TreeResponse, type HistoryResponse } from '../services/warehouseApi';
+import { PackagePlus, RotateCcw, Zap, Layers, Info, History, ArrowRight, Trash2, ShieldCheck, Check } from 'lucide-react';
+import { warehouseApi, type ArrivalResponse, type RemovalResponse, type Interval, type TreeResponse } from '../services/warehouseApi';
 import { AvlTreeSvg } from '../components/AvlTreeSvg';
 import { AdaptiveNumberLine } from '../components/AdaptiveNumberLine';
+import { useRealtimeSync } from '../hooks/useRealtimeSync';
 
 export const LiveArrivalPage: React.FC = () => {
   const [packageIdInput, setPackageIdInput] = useState('');
+  const [removeIdInput, setRemoveIdInput] = useState('');
   const [batchInput, setBatchInput] = useState('');
   const [intervals, setIntervals] = useState<Interval[]>([]);
   const [gaps, setGaps] = useState<Interval[]>([]);
@@ -16,6 +18,8 @@ export const LiveArrivalPage: React.FC = () => {
   const [stepExplanation, setStepExplanation] = useState<string[]>([
     'Waiting for package arrivals. Enter an ID above to trigger C engine AVL tree insertion.'
   ]);
+
+  const { logActivity, onlineDevices, connectionState } = useRealtimeSync();
 
   const refreshAll = async () => {
     const ivRes = await warehouseApi.getIntervals();
@@ -80,6 +84,51 @@ export const LiveArrivalPage: React.FC = () => {
     setStepExplanation(steps);
     setPackageIdInput('');
     await refreshAll();
+    await logActivity(
+      res.operation === 'DUPLICATE' ? 'DUPLICATE_IGNORED' : 'PACKAGE_ADDED',
+      id,
+      { operation: res.operation, execution_ns: res.execution_time_ns }
+    );
+    setLoading(false);
+  };
+
+  const handleRemovePackage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const id = parseInt(removeIdInput);
+    if (isNaN(id) || id < 0) return;
+
+    if (!confirm(`Are you sure you want to remove package #${id} from the warehouse index?`)) return;
+
+    setLoading(true);
+    const res = await warehouseApi.removePackage(id);
+    const steps: string[] = [];
+    steps.push(`Package ID removal requested: #${id}`);
+
+    if (res.operation === 'NOT_FOUND') {
+      steps.push(`1. Queried AVL tree root in O(log k).`);
+      steps.push(`2. Package #${id} does not exist in any current interval.`);
+      steps.push(`Result: No changes made to warehouse index.`);
+    } else if (res.operation === 'SPLIT') {
+      steps.push(`1. Located containing interval [${res.touched_prev.start}, ${res.touched_prev.end}].`);
+      steps.push(`2. Removed interior ID ${id}, splitting interval into two:`);
+      steps.push(`   - Left portion: [${res.touched_new[0].start}, ${res.touched_new[0].end}]`);
+      steps.push(`   - Right portion: [${res.touched_new[1].start}, ${res.touched_new[1].end}]`);
+      steps.push(`3. Inserted new intervals and verified AVL balance factors.`);
+    } else if (res.operation === 'SHRUNK_LEFT') {
+      steps.push(`1. Removed left boundary ID ${id}.`);
+      steps.push(`2. Shifted interval start: [${res.touched_prev.start}, ${res.touched_prev.end}] → [${res.touched_new[0].start}, ${res.touched_new[0].end}].`);
+    } else if (res.operation === 'SHRUNK_RIGHT') {
+      steps.push(`1. Removed right boundary ID ${id}.`);
+      steps.push(`2. Shifted interval end: [${res.touched_prev.start}, ${res.touched_prev.end}] → [${res.touched_new[0].start}, ${res.touched_new[0].end}].`);
+    } else if (res.operation === 'NODE_DELETED') {
+      steps.push(`1. Target was isolated single-ID interval [${id}, ${id}].`);
+      steps.push(`2. Completely deleted AVL node from tree and executed height rebalance.`);
+    }
+
+    setStepExplanation(steps);
+    setRemoveIdInput('');
+    await refreshAll();
+    await logActivity('PACKAGE_REMOVED', id, { operation: res.operation, execution_ns: res.execution_time_ns });
     setLoading(false);
   };
 
@@ -126,11 +175,12 @@ export const LiveArrivalPage: React.FC = () => {
         </button>
       </div>
 
-      {/* SECTION A: Package Arrival Input */}
-      <div className="grid md:grid-cols-2 gap-6">
+      {/* SECTION A: Package Input Controls */}
+      <div className="grid md:grid-cols-3 gap-6">
+        {/* 1. Ingest Single Package */}
         <div className="p-6 bg-surface border border-border rounded-xl space-y-4 shadow-sm">
           <h3 className="font-serif text-lg font-semibold text-text flex items-center gap-2">
-            <PackagePlus className="w-4 h-4 text-primary" /> Single Package Input
+            <PackagePlus className="w-4 h-4 text-primary" /> Single Arrival
           </h3>
           <form onSubmit={handleAddPackage} className="flex gap-2">
             <input
@@ -147,16 +197,16 @@ export const LiveArrivalPage: React.FC = () => {
               disabled={loading || !packageIdInput}
               className="px-4 py-2 bg-primary hover:bg-primary-dark disabled:opacity-50 text-white rounded text-sm font-medium transition flex items-center gap-1.5"
             >
-              <Zap className="w-4 h-4 fill-white" /> Add
+              <Zap className="w-4 h-4 fill-white" /> Ingest
             </button>
           </form>
 
-          {/* Preset Buttons for Faculty Demonstration */}
+          {/* Preset Buttons for Demonstration */}
           <div className="pt-2 border-t border-border">
-            <span className="text-[11px] font-mono text-muted block mb-1.5">Preset Demo Inputs:</span>
+            <span className="text-[11px] font-mono text-muted block mb-1.5">Presets:</span>
             <div className="flex flex-wrap gap-1.5">
               {[
-                { label: 'Sample [1,3,7,2,6]', ids: [1, 3, 7, 2, 6] },
+                { label: '[1,3,7,2,6]', ids: [1, 3, 7, 2, 6] },
                 { label: 'Bridge 4', ids: [4] },
                 { label: 'Bridge 5', ids: [5] },
                 { label: 'Sparse 500M', ids: [500000000] }
@@ -167,6 +217,7 @@ export const LiveArrivalPage: React.FC = () => {
                     setLoading(true);
                     await warehouseApi.addBatch(p.ids);
                     await refreshAll();
+                    await logActivity('BATCH_IMPORT', null, { count: p.ids.length, ids: p.ids });
                     setLoading(false);
                   }}
                   className="px-2 py-1 text-xs font-mono bg-background hover:bg-border/60 text-text rounded border border-border transition"
@@ -178,7 +229,36 @@ export const LiveArrivalPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Batch Input */}
+        {/* 2. Remove Individual Package */}
+        <div className="p-6 bg-surface border border-missing/40 rounded-xl space-y-4 shadow-sm">
+          <h3 className="font-serif text-lg font-semibold text-text flex items-center gap-2">
+            <Trash2 className="w-4 h-4 text-missing" /> Remove Package
+          </h3>
+          <p className="text-[11px] font-mono text-muted">Splits or shrinks intervals in O(log k) C core time.</p>
+          <form onSubmit={handleRemovePackage} className="flex gap-2">
+            <input
+              type="number"
+              min="0"
+              max="1000000000"
+              value={removeIdInput}
+              onChange={(e) => setRemoveIdInput(e.target.value)}
+              placeholder="Package ID to delete"
+              className="flex-1 px-3.5 py-2 bg-background border border-border rounded font-mono text-sm focus:outline-none focus:ring-1 focus:ring-missing"
+            />
+            <button
+              type="submit"
+              disabled={loading || !removeIdInput}
+              className="px-4 py-2 bg-missing hover:bg-amber-600 disabled:opacity-50 text-white rounded text-sm font-medium transition flex items-center gap-1.5"
+            >
+              Remove
+            </button>
+          </form>
+          <div className="text-[10px] font-mono text-muted pt-1">
+            e.g. Removing 4 from [1, 7] creates [1, 3] and [5, 7].
+          </div>
+        </div>
+
+        {/* 3. Batch Package Sequence */}
         <div className="p-6 bg-surface border border-border rounded-xl space-y-4 shadow-sm">
           <h3 className="font-serif text-lg font-semibold text-text flex items-center gap-2">
             <Layers className="w-4 h-4 text-accent" /> Batch Package Sequence
