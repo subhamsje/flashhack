@@ -4,7 +4,8 @@ on:
   workflow_dispatch:
   push:
     paths:
-      - 'mobile-app/**'
+      - 'apk-app/**'
+      - '.github/workflows/build-apk.yml'
 
 jobs:
   build:
@@ -14,31 +15,21 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: 17
 
-      - name: Install dependencies
-        working-directory: mobile-app
-        run: npm install
-
-      - name: Prebuild native Android project
-        working-directory: mobile-app
-        run: npx expo prebuild --platform android
+      - name: Grant execute permission for gradlew
+        run: chmod +x apk-app/android/gradlew
 
       - name: Build Debug APK with Gradle
-        working-directory: mobile-app/android
+        working-directory: apk-app/android
         run: ./gradlew assembleDebug --no-daemon
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: warehouse-tracker.apk
-          path: mobile-app/android/app/build/outputs/apk/debug/app-debug.apk
+          path: apk-app/android/app/build/outputs/apk/debug/app-debug.apk
