@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { PackagePlus, RotateCcw, Zap, Layers, AlertCircle, Info, ArrowRight, Check } from 'lucide-react';
-import { warehouseApi, type ArrivalResponse, type Interval, type TreeResponse } from '../services/warehouseApi';
+import { PackagePlus, RotateCcw, Zap, Layers, Info, History, ArrowRight } from 'lucide-react';
+import { warehouseApi, type ArrivalResponse, type Interval, type TreeResponse, type HistoryResponse } from '../services/warehouseApi';
 import { AvlTreeSvg } from '../components/AvlTreeSvg';
+import { AdaptiveNumberLine } from '../components/AdaptiveNumberLine';
 
 export const LiveArrivalPage: React.FC = () => {
   const [packageIdInput, setPackageIdInput] = useState('');
@@ -10,6 +11,7 @@ export const LiveArrivalPage: React.FC = () => {
   const [gaps, setGaps] = useState<Interval[]>([]);
   const [treeData, setTreeData] = useState<TreeResponse | null>(null);
   const [lastEvent, setLastEvent] = useState<ArrivalResponse | null>(null);
+  const [recentOperations, setRecentOperations] = useState<ArrivalResponse[]>([]);
   const [loading, setLoading] = useState(false);
   const [stepExplanation, setStepExplanation] = useState<string[]>([
     'Waiting for package arrivals. Enter an ID above to trigger C engine AVL tree insertion.'
@@ -44,6 +46,7 @@ export const LiveArrivalPage: React.FC = () => {
     setLoading(true);
     const res = await warehouseApi.addArrival(id);
     setLastEvent(res);
+    setRecentOperations((prev) => [res, ...prev.slice(0, 4)]);
 
     // Formulate 5-step faculty explanation
     const steps: string[] = [];
@@ -102,6 +105,7 @@ export const LiveArrivalPage: React.FC = () => {
     if (!confirm('Clear all intervals in the live session?')) return;
     await warehouseApi.reset();
     setLastEvent(null);
+    setRecentOperations([]);
     setStepExplanation(['Index reset to empty state.']);
     await refreshAll();
   };
@@ -198,21 +202,38 @@ export const LiveArrivalPage: React.FC = () => {
         </div>
       </div>
 
-      {/* SECTION B: Live Interval Visualization */}
+      {/* SECTION B: Adaptive Number Line Visualization */}
       <div className="p-6 bg-surface border border-border rounded-xl space-y-4 shadow-sm">
         <div className="flex items-center justify-between border-b border-border pb-3">
-          <h3 className="font-serif text-lg font-semibold text-text">Live Consecutive Intervals</h3>
+          <div>
+            <h3 className="font-serif text-lg font-semibold text-text">Adaptive Number-Line View</h3>
+            <p className="text-xs text-muted">Automatically switches between discrete unit cells and sparse continuous bars.</p>
+          </div>
           <span className="text-xs font-mono text-muted">{intervals.length} Disjoint Ranges</span>
         </div>
 
-        <div className="space-y-4">
+        <AdaptiveNumberLine
+          intervals={intervals}
+          gaps={gaps}
+          lastArrivalId={lastEvent?.package_id}
+        />
+      </div>
+
+      {/* SECTION C: Consecutive Intervals and Missing Gaps */}
+      <div className="p-6 bg-surface border border-border rounded-xl space-y-4 shadow-sm">
+        <div className="flex items-center justify-between border-b border-border pb-3">
+          <h3 className="font-serif text-lg font-semibold text-text">Stored Interval Blocks</h3>
+          <span className="text-xs font-mono text-muted">Total Elements: {treeData?.total_packages || 0}</span>
+        </div>
+
+        <div className="grid md:grid-cols-2 gap-4">
           <div>
             <div className="text-[11px] font-mono text-received uppercase font-bold tracking-wider mb-2">
               RECEIVED RANGES (GREEN)
             </div>
-            <div className="flex flex-wrap gap-2.5 p-3.5 bg-background border border-border rounded-lg min-h-12 items-center">
+            <div className="flex flex-wrap gap-2.5 p-3.5 bg-background border border-border rounded-lg min-h-16 items-center">
               {intervals.length === 0 ? (
-                <span className="text-xs font-mono text-muted">No intervals currently in index.</span>
+                <span className="text-xs font-mono text-muted">No intervals in index.</span>
               ) : (
                 intervals.map((iv, i) => (
                   <div
@@ -229,13 +250,15 @@ export const LiveArrivalPage: React.FC = () => {
             </div>
           </div>
 
-          {gaps.length > 0 && (
-            <div>
-              <div className="text-[11px] font-mono text-missing uppercase font-bold tracking-wider mb-2">
-                MISSING RANGES (AMBER)
-              </div>
-              <div className="flex flex-wrap gap-2.5 p-3.5 bg-missing/5 border border-dashed border-missing/30 rounded-lg items-center">
-                {gaps.map((g, i) => (
+          <div>
+            <div className="text-[11px] font-mono text-missing uppercase font-bold tracking-wider mb-2">
+              MISSING RANGES (AMBER)
+            </div>
+            <div className="flex flex-wrap gap-2.5 p-3.5 bg-missing/5 border border-dashed border-missing/30 rounded-lg min-h-16 items-center">
+              {gaps.length === 0 ? (
+                <span className="text-xs font-mono text-muted">No gaps in bounded bounds.</span>
+              ) : (
+                gaps.map((g, i) => (
                   <div
                     key={i}
                     className="px-3 py-1.5 bg-missing/10 border border-missing/40 rounded font-mono text-xs font-medium text-missing flex items-center gap-2"
@@ -245,42 +268,86 @@ export const LiveArrivalPage: React.FC = () => {
                       -{g.end - g.start + 1}
                     </span>
                   </div>
-                ))}
-              </div>
+                ))
+              )}
             </div>
-          )}
+          </div>
         </div>
       </div>
 
-      {/* SECTION C: Real C Engine AVL Tree SVG */}
+      {/* SECTION D: Real C Engine AVL Tree SVG */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <h3 className="font-serif text-lg font-semibold text-text">Authoritative AVL Tree Layout</h3>
           <span className="text-xs font-mono text-muted">Nodes: {treeData?.node_count || 0} | Height: {treeData?.max_depth !== undefined ? treeData.max_depth + 1 : 0}</span>
         </div>
-        <AvlTreeSvg nodes={treeData?.nodes || []} highlightId={lastEvent?.package_id} />
+        <AvlTreeSvg
+          nodes={treeData?.nodes || []}
+          highlightId={lastEvent?.package_id}
+          searchPath={lastEvent?.search_path}
+          rotationType={lastEvent?.rotation}
+        />
       </div>
 
-      {/* SECTION D: Operation Explanation Panel */}
-      <div className="p-6 bg-surface border border-border rounded-xl space-y-3 shadow-sm">
-        <div className="flex items-center justify-between border-b border-border pb-2">
-          <h3 className="font-serif text-base font-semibold text-text flex items-center gap-2">
-            <Info className="w-4 h-4 text-primary" /> Step-by-Step Algorithmic Explanation
-          </h3>
-          {lastEvent && (
-            <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-primary-light text-primary">
-              {lastEvent.operation}
-            </span>
-          )}
+      {/* SECTION E: Operation Event Timeline & Algorithmic Explanation */}
+      <div className="grid md:grid-cols-2 gap-6">
+        {/* Algorithmic Step-by-Step */}
+        <div className="p-6 bg-surface border border-border rounded-xl space-y-3 shadow-sm">
+          <div className="flex items-center justify-between border-b border-border pb-2">
+            <h3 className="font-serif text-base font-semibold text-text flex items-center gap-2">
+              <Info className="w-4 h-4 text-primary" /> Step-by-Step Algorithmic Explanation
+            </h3>
+            {lastEvent && (
+              <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-primary-light text-primary">
+                {lastEvent.operation}
+              </span>
+            )}
+          </div>
+
+          <div className="space-y-1.5 font-mono text-xs">
+            {stepExplanation.map((step, idx) => (
+              <div key={idx} className="flex items-start gap-2 text-text">
+                <span className="text-primary font-bold">›</span>
+                <span>{step}</span>
+              </div>
+            ))}
+          </div>
         </div>
 
-        <div className="space-y-1.5 font-mono text-xs">
-          {stepExplanation.map((step, idx) => (
-            <div key={idx} className="flex items-start gap-2 text-text">
-              <span className="text-primary font-bold">›</span>
-              <span>{step}</span>
+        {/* Operation Timeline */}
+        <div className="p-6 bg-surface border border-border rounded-xl space-y-3 shadow-sm">
+          <div className="flex items-center justify-between border-b border-border pb-2">
+            <h3 className="font-serif text-base font-semibold text-text flex items-center gap-2">
+              <History className="w-4 h-4 text-accent" /> Recent Operation Timeline
+            </h3>
+            <span className="text-[11px] font-mono text-muted">Last 5 actions</span>
+          </div>
+
+          {recentOperations.length === 0 ? (
+            <p className="text-xs font-mono text-muted italic pt-4 text-center">
+              No operations logged yet in this session.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {recentOperations.map((op, idx) => (
+                <div
+                  key={idx}
+                  className="flex items-center justify-between p-2 rounded bg-background border border-border text-xs font-mono"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-primary">ID #{op.package_id}</span>
+                    <ArrowRight className="w-3 h-3 text-muted" />
+                    <span className="px-1.5 py-0.5 rounded bg-surface border border-border text-[10px]">
+                      {op.operation}
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-muted">
+                    Rot: {op.rotation || 'NONE'}
+                  </span>
+                </div>
+              ))}
             </div>
-          ))}
+          )}
         </div>
       </div>
     </div>

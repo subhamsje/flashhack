@@ -13,6 +13,8 @@ export interface ArrivalResponse {
   touched_new: Interval;
   touched_prev: Interval[];
   current_intervals: Interval[];
+  search_path?: number[];
+  rotation?: string;
 }
 
 export interface RangeAnalysisResponse {
@@ -36,6 +38,11 @@ export interface HistoryItem {
   resulting_interval: Interval;
 }
 
+export interface HistoryResponse {
+  success: boolean;
+  history: HistoryItem[];
+}
+
 export interface AVLNodeSnapshot {
   node_id: number;
   parent_id: number;
@@ -52,6 +59,7 @@ export interface TreeResponse {
   success: boolean;
   node_count: number;
   max_depth: number;
+  total_packages?: number;
   nodes: AVLNodeSnapshot[];
 }
 
@@ -100,12 +108,12 @@ export const warehouseApi = {
     return await res.json();
   },
 
-  async getHistory(): Promise<{ success: boolean; count: number; history: HistoryItem[] }> {
+  async getHistory(): Promise<HistoryResponse> {
     const res = await fetch(`${API_BASE}/history`);
     return await res.json();
   },
 
-  async reset(): Promise<{ success: boolean; message: string }> {
+  async reset(): Promise<{ success: boolean }> {
     const res = await fetch(`${API_BASE}/reset`, { method: 'POST' });
     return await res.json();
   }
