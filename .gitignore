@@ -5,9 +5,22 @@ server/warehouse_server
 cli/warehouse_cli
 warehouse
 test_warehouse
+*.exe
 *.o
+*.obj
+*.dll
+*.so
+*.dylib
 *.dSYM/
 .DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Persistence snapshots generated during runtime
+*.lai
+data/*.lai
+new/data/*.lai
 
 # Frontend build & dependencies
 frontend/node_modules/
