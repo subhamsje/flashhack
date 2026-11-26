@@ -3,16 +3,16 @@
 @tailwind utilities;
 
 :root {
-  --background: #0d1117;
-  --surface: #161b22;
-  --primary: #2ea043;
-  --primary-light: #238636;
-  --accent: #d29922;
-  --text: #f0f6fc;
-  --muted: #8b949e;
-  --border: #30363d;
-  --received: #3fb950;
-  --missing: #f0883e;
+  --background: #F7F7F2;
+  --surface: #FFFFFF;
+  --primary: #246B5A;
+  --primary-light: #DDEBE4;
+  --accent: #E4A75B;
+  --text: #26332F;
+  --muted: #77827C;
+  --border: #E2E5DF;
+  --received: #38866C;
+  --missing: #D99A54;
 }
 
 body {
@@ -21,36 +21,20 @@ body {
   background-color: var(--background);
   color: var(--text);
   -webkit-font-smoothing: antialiased;
-  background-image: 
-    radial-gradient(circle at 50% 0%, rgba(46, 160, 67, 0.08) 0%, transparent 60%),
-    radial-gradient(circle at 100% 100%, rgba(210, 153, 34, 0.04) 0%, transparent 50%);
-  min-height: 100vh;
-}
-
-/* Glassmorphic elevation utility */
-.glass-panel {
-  background: rgba(22, 27, 34, 0.75);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(240, 246, 252, 0.1);
-}
-
-.glass-panel:hover {
-  border-color: rgba(240, 246, 252, 0.18);
 }
 
 /* Subtle thin custom scrollbar */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 ::-webkit-scrollbar-track {
-  background: #0d1117;
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #30363d;
-  border-radius: 3px;
+  background: #E2E5DF;
+  border-radius: 2px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #8b949e;
+  background: #C4C8BE;
 }
