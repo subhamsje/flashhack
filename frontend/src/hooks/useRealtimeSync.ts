@@ -27,6 +27,11 @@ export const useRealtimeSync = (onStateSync?: (intervals: Interval[]) => void) =
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
   const [currentVersion, setCurrentVersion] = useState<number>(1);
   const deviceId = useRef(getDeviceId());
+  const onStateSyncRef = useRef(onStateSync);
+
+  useEffect(() => {
+    onStateSyncRef.current = onStateSync;
+  }, [onStateSync]);
 
   // Function to log activity to Supabase and broadcast
   const logActivity = useCallback(async (
@@ -58,7 +63,6 @@ export const useRealtimeSync = (onStateSync?: (intervals: Interval[]) => void) =
 
   // Authoritative State Reconciliation
   const reconcileAuthoritativeState = useCallback(async () => {
-    setConnectionState('SYNCING');
     try {
       const { data } = await supabase
         .from('warehouse_state')
@@ -69,8 +73,8 @@ export const useRealtimeSync = (onStateSync?: (intervals: Interval[]) => void) =
       if (data && data.received_intervals) {
         setCurrentVersion(data.state_version ?? 1);
         await warehouseApi.reconstructFromCloud();
-        if (onStateSync) {
-          onStateSync(data.received_intervals as Interval[]);
+        if (onStateSyncRef.current) {
+          onStateSyncRef.current(data.received_intervals as Interval[]);
         }
       }
       setLastSyncTime(new Date().toLocaleTimeString());
@@ -78,7 +82,7 @@ export const useRealtimeSync = (onStateSync?: (intervals: Interval[]) => void) =
     } catch (e) {
       setConnectionState('OFFLINE');
     }
-  }, [onStateSync]);
+  }, []);
 
   // Fetch initial activity logs
   const fetchLogs = useCallback(async () => {
@@ -100,7 +104,6 @@ export const useRealtimeSync = (onStateSync?: (intervals: Interval[]) => void) =
     fetchLogs();
     reconcileAuthoritativeState();
 
-    // Unique channel per hook instance to prevent "cannot add callbacks after subscribe()" in React StrictMode/re-renders
     const channelName = `warehouse-${WAREHOUSE_ID}-${Math.random().toString(36).substring(2, 9)}`;
     const channel = supabase.channel(channelName, {
       config: { presence: { key: deviceId.current } }
@@ -118,15 +121,19 @@ export const useRealtimeSync = (onStateSync?: (intervals: Interval[]) => void) =
       async (payload) => {
         const newState = payload.new as any;
         if (newState && newState.received_intervals) {
-          if (newState.state_version >= currentVersion) {
-            setCurrentVersion(newState.state_version);
-            await warehouseApi.reconstructFromCloud();
-            if (onStateSync) {
-              onStateSync(newState.received_intervals as Interval[]);
+          setCurrentVersion((prevVer) => {
+            if (newState.state_version >= prevVer) {
+              warehouseApi.reconstructFromCloud().then(() => {
+                if (onStateSyncRef.current) {
+                  onStateSyncRef.current(newState.received_intervals as Interval[]);
+                }
+              });
+              setLastSyncTime(new Date().toLocaleTimeString());
+              setConnectionState('CONNECTED');
+              return newState.state_version;
             }
-            setLastSyncTime(new Date().toLocaleTimeString());
-            setConnectionState('CONNECTED');
-          }
+            return prevVer;
+          });
         }
       }
     );
@@ -196,7 +203,7 @@ export const useRealtimeSync = (onStateSync?: (intervals: Interval[]) => void) =
       window.removeEventListener('offline', handleOffline);
       supabase.removeChannel(channel);
     };
-  }, [fetchLogs, reconcileAuthoritativeState, currentVersion, onStateSync]);
+  }, []); // Run ONCE on mount!
 
   return {
     connectionState,

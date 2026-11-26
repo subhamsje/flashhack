@@ -388,7 +388,7 @@ const engine = new LocalWarehouseEngine();
 
 export const WAREHOUSE_ID = '5ee5924d-e701-4958-b060-9758a0fd6c13';
 
-// Cloud state synchronization helper
+// Cloud state synchronization helper (runs safely in background without blocking UI render)
 async function persistWarehouseState(
   intervals: Interval[],
   totalPackages: number,
@@ -397,16 +397,9 @@ async function persistWarehouseState(
   metadata: any = {}
 ) {
   try {
-    // 1. Fetch current version to increment monotonically
-    const { data: currState } = await supabase
-      .from('warehouse_state')
-      .select('state_version')
-      .eq('warehouse_id', WAREHOUSE_ID)
-      .single();
+    const nextVersion = Date.now();
 
-    const nextVersion = (currState?.state_version || 1) + 1;
-
-    // 2. Persist authoritative warehouse state
+    // 1. Persist authoritative warehouse state
     await supabase
       .from('warehouse_state')
       .upsert({
@@ -420,7 +413,7 @@ async function persistWarehouseState(
         updated_by: 'operator'
       });
 
-    // 3. Persist package record if packageId present
+    // 2. Persist package record if packageId present
     if (packageId !== null && operationType !== 'PACKAGE_REMOVED') {
       await supabase
         .from('packages')
@@ -437,7 +430,7 @@ async function persistWarehouseState(
         .eq('package_id', packageId);
     }
 
-    // 4. Record operation history
+    // 3. Record operation history
     await supabase
       .from('operation_history')
       .insert([{
@@ -590,7 +583,10 @@ export const warehouseApi = {
     engine.intervals = [];
     engine.history = [];
     engine.totalPackages = 0;
-    persistWarehouseState([], 0, 'RESET', null).catch(() => {});
+    await persistWarehouseState([], 0, 'SESSION_RESET', null);
+    try {
+      await supabase.from('packages').delete().eq('warehouse_id', WAREHOUSE_ID);
+    } catch (e) {}
     return { success: true };
   },
 
