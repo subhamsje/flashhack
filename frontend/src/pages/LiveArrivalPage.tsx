@@ -260,7 +260,7 @@ export const LiveArrivalPage: React.FC = () => {
       {/* SECTION A: Package Input Controls */}
       <div className="grid md:grid-cols-3 gap-6">
         {/* 1. Ingest Single Package */}
-        <div className="p-6 bg-surface border border-border rounded-xl space-y-4 shadow-sm">
+        <div className="p-6 bg-surface border border-border hover:border-primary/40 transition-colors duration-200 rounded-xl space-y-4 shadow-xs">
           <h3 className="font-serif text-lg font-semibold text-text flex items-center gap-2">
             <PackagePlus className="w-4 h-4 text-primary" /> Single Arrival
           </h3>
@@ -272,12 +272,12 @@ export const LiveArrivalPage: React.FC = () => {
               value={packageIdInput}
               onChange={(e) => setPackageIdInput(e.target.value)}
               placeholder="Package ID (0 — 10⁹)"
-              className="flex-1 px-3.5 py-2 bg-background border border-border rounded font-mono text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+              className="flex-1 px-3.5 py-2 bg-background border border-border rounded font-mono text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition"
             />
             <button
               type="submit"
               disabled={loading || !packageIdInput}
-              className="px-4 py-2 bg-primary hover:bg-primary-dark disabled:opacity-50 text-white rounded text-sm font-medium transition flex items-center gap-1.5"
+              className="px-4 py-2 bg-primary hover:bg-primary-dark active:scale-[0.98] disabled:opacity-50 text-white rounded text-sm font-semibold transition-all shadow-xs flex items-center gap-1.5"
             >
               <Zap className="w-4 h-4 fill-white" /> Ingest
             </button>
@@ -302,7 +302,7 @@ export const LiveArrivalPage: React.FC = () => {
                     setLoading(false);
                     logActivity('BATCH_IMPORT', null, { count: p.ids.length, ids: p.ids }).catch(() => {});
                   }}
-                  className="px-2 py-1 text-xs font-mono bg-background hover:bg-border/60 text-text rounded border border-border transition"
+                  className="px-2.5 py-1 text-xs font-mono bg-background hover:bg-surface hover:border-primary/50 hover:text-primary active:scale-95 text-text rounded border border-border transition-all shadow-xs"
                 >
                   {p.label}
                 </button>
@@ -312,7 +312,7 @@ export const LiveArrivalPage: React.FC = () => {
         </div>
 
         {/* 2. Remove Individual Package */}
-        <div className="p-6 bg-surface border border-missing/40 rounded-xl space-y-4 shadow-sm">
+        <div className="p-6 bg-surface border border-missing/40 hover:border-missing/80 transition-colors duration-200 rounded-xl space-y-4 shadow-xs">
           <h3 className="font-serif text-lg font-semibold text-text flex items-center gap-2">
             <Trash2 className="w-4 h-4 text-missing" /> Remove Package
           </h3>
@@ -325,12 +325,12 @@ export const LiveArrivalPage: React.FC = () => {
               value={removeIdInput}
               onChange={(e) => setRemoveIdInput(e.target.value)}
               placeholder="Package ID to delete"
-              className="flex-1 px-3.5 py-2 bg-background border border-border rounded font-mono text-sm focus:outline-none focus:ring-1 focus:ring-missing"
+              className="flex-1 px-3.5 py-2 bg-background border border-border rounded font-mono text-sm focus:outline-none focus:ring-2 focus:ring-missing/40 focus:border-missing transition"
             />
             <button
               type="submit"
               disabled={loading || !removeIdInput}
-              className="px-4 py-2 bg-missing hover:bg-amber-600 disabled:opacity-50 text-white rounded text-sm font-medium transition flex items-center gap-1.5"
+              className="px-4 py-2 bg-missing hover:bg-amber-600 active:scale-[0.98] disabled:opacity-50 text-white rounded text-sm font-semibold transition-all shadow-xs flex items-center gap-1.5"
             >
               Remove
             </button>
@@ -341,7 +341,7 @@ export const LiveArrivalPage: React.FC = () => {
         </div>
 
         {/* 3. Batch Package Sequence */}
-        <div className="p-6 bg-surface border border-border rounded-xl space-y-4 shadow-sm">
+        <div className="p-6 bg-surface border border-border hover:border-accent/60 transition-colors duration-200 rounded-xl space-y-4 shadow-xs">
           <h3 className="font-serif text-lg font-semibold text-text flex items-center gap-2">
             <Layers className="w-4 h-4 text-accent" /> Batch Package Sequence
           </h3>
@@ -351,12 +351,12 @@ export const LiveArrivalPage: React.FC = () => {
               value={batchInput}
               onChange={(e) => setBatchInput(e.target.value)}
               placeholder="e.g. 10, 11, 12, 14, 15, 13"
-              className="w-full px-3.5 py-2 bg-background border border-border rounded font-mono text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+              className="w-full px-3.5 py-2 bg-background border border-border rounded font-mono text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition"
             />
             <button
               type="submit"
               disabled={loading || !batchInput}
-              className="px-4 py-2 bg-text hover:bg-black disabled:opacity-50 text-white rounded text-sm font-medium transition"
+              className="w-full px-4 py-2 bg-text hover:bg-black active:scale-[0.98] disabled:opacity-50 text-white rounded text-sm font-semibold transition-all shadow-xs"
             >
               Process Batch Sequence
             </button>
@@ -395,12 +395,15 @@ export const LiveArrivalPage: React.FC = () => {
             </div>
             <div className="flex flex-wrap gap-2.5 p-3.5 bg-background border border-border rounded-lg min-h-16 items-center">
               {intervals.length === 0 ? (
-                <span className="text-xs font-mono text-muted">No intervals in index.</span>
+                <div className="flex items-center gap-2 text-xs font-mono text-muted py-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-muted/60 animate-ping" />
+                  <span>No consecutive intervals in index. Enter an ID above to ignite interval fusion.</span>
+                </div>
               ) : (
                 intervals.map((iv, i) => (
                   <div
                     key={i}
-                    className="px-3 py-1.5 bg-surface border border-received/40 rounded font-mono text-xs font-bold text-received shadow-sm flex items-center gap-2"
+                    className="px-3 py-1.5 bg-surface border border-received/40 hover:border-received hover:scale-[1.02] transition-all duration-150 rounded font-mono text-xs font-bold text-received shadow-xs flex items-center gap-2 cursor-default select-none"
                   >
                     <span>[{iv.start} ━━━ {iv.end}]</span>
                     <span className="text-[10px] px-1.5 py-0.2 bg-received/10 rounded-full font-sans font-medium">
