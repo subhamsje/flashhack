@@ -126,8 +126,7 @@ export const ActivityLogPage: React.FC = () => {
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface border border-border font-mono text-xs">
             <span className="w-2 h-2 rounded-full bg-received animate-pulse" />
-            <span className="text-text font-semibold">{onlineDevices} Devices Online</span>
-            <span className="text-muted text-[10px]">({connectionState})</span>
+            <span className="text-text font-semibold">{connectionState}</span>
           </div>
 
           <button

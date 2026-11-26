@@ -116,11 +116,10 @@ export const AppLayout: React.FC = () => {
           <div className="flex items-center gap-2 sm:gap-3">
             <div
               className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-mono rounded-full border shadow-2xs transition ${status.bg}`}
-              title={`Warehouse: Main Distribution\nState Version: v${currentVersion}\nLast Synced: ${lastSyncTime}\nOnline Devices: ${onlineDevices}`}
+              title={`Warehouse: Main Distribution\nState Version: v${currentVersion}\nLast Synced: ${lastSyncTime}`}
             >
               <span className={`w-1.5 h-1.5 rounded-full ${status.dot}`} />
               <span className="font-semibold text-[11px]">{status.label}</span>
-              <span className="text-[10px] opacity-60 hidden md:inline">({onlineDevices})</span>
             </div>
 
             {/* Auth / Account Button */}
