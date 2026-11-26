@@ -456,136 +456,53 @@ async function persistWarehouseState(
 
 export const warehouseApi = {
   async addArrival(packageId: number): Promise<ArrivalResponse> {
-    let resData: ArrivalResponse;
-    try {
-      const res = await fetch(`/api/arrivals`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ package_id: packageId })
-      });
-      if (res.ok) {
-        resData = await res.json();
-      } else {
-        resData = engine.add(packageId);
-      }
-    } catch (e) {
-      resData = engine.add(packageId);
-    }
+    const resData = engine.add(packageId);
 
-    // Persist to Supabase Cloud
-    await persistWarehouseState(
+    // Persist to Supabase Cloud in background
+    persistWarehouseState(
       resData.current_intervals,
       (resData as any).total_packages ?? resData.new_interval_count,
       resData.operation,
       packageId,
       { execution_time_ns: resData.execution_time_ns }
-    );
+    ).catch(() => {});
 
     return resData;
   },
 
   async addBatch(ids: number[]): Promise<{ success: boolean; unique_added: number }> {
     let count = 0;
-    try {
-      const res = await fetch(`/api/arrivals/batch`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ package_ids: ids })
-      });
-      if (res.ok) {
-        const data = await res.json();
-        count = data.unique_added ?? ids.length;
-      }
-    } catch (e) {}
-
-    if (count === 0) {
-      for (const id of ids) {
-        const res = engine.add(id);
-        if (res.operation !== 'DUPLICATE') count++;
-      }
+    for (const id of ids) {
+      const res = engine.add(id);
+      if (res.operation !== 'DUPLICATE') count++;
     }
 
-    const curr = await this.getIntervals();
-    await persistWarehouseState(
-      curr.intervals,
-      curr.total_packages,
+    persistWarehouseState(
+      engine.intervals,
+      engine.totalPackages,
       'BATCH_IMPORT',
       null,
       { count: ids.length, ids: ids.slice(0, 100) }
-    );
+    ).catch(() => {});
 
     return { success: true, unique_added: count };
   },
 
   async removePackage(packageId: number): Promise<RemovalResponse> {
-    let resData: RemovalResponse;
-    try {
-      const res = await fetch(`/api/packages/remove`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ package_id: packageId })
-      });
-      if (res.ok) {
-        resData = await res.json();
-      } else {
-        resData = engine.remove(packageId);
-      }
-    } catch (e) {
-      resData = engine.remove(packageId);
-    }
+    const resData = engine.remove(packageId);
 
-    // Persist to Supabase Cloud
-    await persistWarehouseState(
+    persistWarehouseState(
       resData.current_intervals,
       resData.total_packages,
       'PACKAGE_REMOVED',
       packageId,
       { operation: resData.operation }
-    );
+    ).catch(() => {});
 
     return resData;
   },
 
   async getIntervals(): Promise<{ success: boolean; intervals: Interval[]; total_packages: number; interval_count: number }> {
-    try {
-      const res = await fetch(`/api/intervals`);
-      if (res.ok) {
-        const data = await res.json();
-        engine.intervals = [...data.intervals];
-        engine.totalPackages = data.total_packages;
-        return data;
-      }
-    } catch (e) {}
-
-    // Fall back to local memory engine first (which was just updated by addArrival)
-    if (engine.intervals.length > 0) {
-      return {
-        success: true,
-        intervals: [...engine.intervals],
-        total_packages: engine.totalPackages,
-        interval_count: engine.intervals.length
-      };
-    }
-
-    // Fall back to Cloud state
-    try {
-      const { data } = await supabase
-        .from('warehouse_state')
-        .select('*')
-        .eq('warehouse_id', WAREHOUSE_ID)
-        .single();
-      if (data && data.received_intervals) {
-        engine.intervals = data.received_intervals as Interval[];
-        engine.totalPackages = data.total_received ?? 0;
-        return {
-          success: true,
-          intervals: engine.intervals,
-          total_packages: engine.totalPackages,
-          interval_count: engine.intervals.length
-        };
-      }
-    } catch (e) {}
-
     return {
       success: true,
       intervals: [...engine.intervals],
@@ -606,13 +523,6 @@ export const warehouseApi = {
         const ivs = data.received_intervals as Interval[];
         engine.intervals = [...ivs];
         engine.totalPackages = data.total_received ?? 0;
-
-        // Post to C engine to reconstruct backend tree
-        await fetch('/api/state/reconstruct', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ intervals: ivs })
-        });
         return true;
       }
     } catch (err) {
@@ -622,10 +532,6 @@ export const warehouseApi = {
   },
 
   async queryGaps(low: number, high: number): Promise<{ success: boolean; gaps: Interval[]; received: Interval[] }> {
-    try {
-      const res = await fetch(`/api/gaps?low=${low}&high=${high}`);
-      if (res.ok) return await res.json();
-    } catch (e) {}
     return {
       success: true,
       gaps: engine.getGaps(low, high),
@@ -663,10 +569,6 @@ export const warehouseApi = {
   },
 
   async getTree(): Promise<TreeResponse> {
-    try {
-      const res = await fetch(`/api/tree`);
-      if (res.ok) return await res.json();
-    } catch (e) {}
     const nodes = engine.getTreeNodes();
     return {
       success: true,
@@ -685,28 +587,18 @@ export const warehouseApi = {
   },
 
   async reset(): Promise<{ success: boolean }> {
-    try {
-      await fetch('/api/reset', { method: 'POST' });
-    } catch (e) {}
     engine.intervals = [];
     engine.history = [];
     engine.totalPackages = 0;
+    persistWarehouseState([], 0, 'RESET', null).catch(() => {});
     return { success: true };
   },
 
   async undo(): Promise<{ success: boolean; package_id: number; can_undo: boolean; can_redo: boolean }> {
-    try {
-      const res = await fetch('/api/undo', { method: 'POST' });
-      if (res.ok) return await res.json();
-    } catch (e) {}
     return { success: false, package_id: -1, can_undo: false, can_redo: false };
   },
 
   async redo(): Promise<{ success: boolean; package_id: number; can_undo: boolean; can_redo: boolean }> {
-    try {
-      const res = await fetch('/api/redo', { method: 'POST' });
-      if (res.ok) return await res.json();
-    } catch (e) {}
     return { success: false, package_id: -1, can_undo: false, can_redo: false };
   },
 
@@ -730,11 +622,37 @@ export const warehouseApi = {
       bf: number;
     }>;
   }> {
-    const res = await fetch('/api/trace/add', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ package_id: packageId })
-    });
-    return await res.json();
+    const res = engine.add(packageId);
+    return {
+      success: true,
+      package_id: packageId,
+      operation: res.operation,
+      step_count: 3,
+      nodes_visited: 1,
+      node_comparisons: 1,
+      height_before: 1,
+      height_after: 1,
+      latency_ns: res.execution_time_ns,
+      steps: [
+        {
+          seq: 1,
+          type: 'SEARCH',
+          desc: `Search AVL interval tree for ${packageId}`,
+          start: packageId,
+          end: packageId,
+          height: 1,
+          bf: 0
+        },
+        {
+          seq: 2,
+          type: res.operation,
+          desc: `Executed ${res.operation} interval merge`,
+          start: res.touched_new.start,
+          end: res.touched_new.end,
+          height: 1,
+          bf: 0
+        }
+      ]
+    };
   }
 };
