@@ -12,11 +12,71 @@
 
 #define DEFAULT_PORT 8080
 #define BUFFER_SIZE 65536
+#define MAX_HISTORY 100
 
 static Warehouse *global_warehouse = NULL;
 static pthread_mutex_t warehouse_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-/* Helpers to send JSON responses */
+/* Circular in-memory audit history */
+typedef struct {
+    package_id_t package_id;
+    ArrivalResult result;
+    size_t prev_count;
+    size_t new_count;
+    Interval touched_prev[2];
+    size_t touched_prev_count;
+    Interval touched_new;
+    int64_t latency_ns;
+    char explanation[256];
+} HistoryEntry;
+
+static HistoryEntry history_buffer[MAX_HISTORY];
+static size_t history_count = 0;
+
+static void record_history(ArrivalEvent ev) {
+    if (history_count < MAX_HISTORY) {
+        history_buffer[history_count].package_id = ev.package_id;
+        history_buffer[history_count].result = ev.result;
+        history_buffer[history_count].prev_count = ev.prev_interval_count;
+        history_buffer[history_count].new_count = ev.new_interval_count;
+        history_buffer[history_count].touched_prev_count = ev.touched_prev_count;
+        history_buffer[history_count].touched_prev[0] = ev.touched_prev[0];
+        history_buffer[history_count].touched_prev[1] = ev.touched_prev[1];
+        history_buffer[history_count].touched_new = ev.touched_new;
+        history_buffer[history_count].latency_ns = ev.execution_time_ns;
+
+        if (ev.result == ARRIVAL_BRIDGED) {
+            snprintf(history_buffer[history_count].explanation, sizeof(history_buffer[history_count].explanation),
+                     "Connected [%" PRId64 ",%" PRId64 "] and [%" PRId64 ",%" PRId64 "] into [%" PRId64 ",%" PRId64 "]",
+                     ev.touched_prev[0].start, ev.touched_prev[0].end,
+                     ev.touched_prev[1].start, ev.touched_prev[1].end,
+                     ev.touched_new.start, ev.touched_new.end);
+        } else if (ev.result == ARRIVAL_EXTENDED_RIGHT) {
+            snprintf(history_buffer[history_count].explanation, sizeof(history_buffer[history_count].explanation),
+                     "Extended [%" PRId64 ",%" PRId64 "] right to %" PRId64,
+                     ev.touched_prev[0].start, ev.touched_prev[0].end, ev.touched_new.end);
+        } else if (ev.result == ARRIVAL_EXTENDED_LEFT) {
+            snprintf(history_buffer[history_count].explanation, sizeof(history_buffer[history_count].explanation),
+                     "Extended [%" PRId64 ",%" PRId64 "] left to %" PRId64,
+                     ev.touched_prev[0].start, ev.touched_prev[0].end, ev.touched_new.start);
+        } else if (ev.result == ARRIVAL_DUPLICATE) {
+            snprintf(history_buffer[history_count].explanation, sizeof(history_buffer[history_count].explanation),
+                     "Package %" PRId64 " already exists in [%" PRId64 ",%" PRId64 "]",
+                     ev.package_id, ev.touched_new.start, ev.touched_new.end);
+        } else {
+            snprintf(history_buffer[history_count].explanation, sizeof(history_buffer[history_count].explanation),
+                     "Created new isolated interval [%" PRId64 ",%" PRId64 "]",
+                     ev.touched_new.start, ev.touched_new.end);
+        }
+        history_count++;
+    } else {
+        memmove(&history_buffer[0], &history_buffer[1], sizeof(HistoryEntry) * (MAX_HISTORY - 1));
+        history_count = MAX_HISTORY - 1;
+        record_history(ev);
+    }
+}
+
+/* Response helper */
 static void send_response(int client_fd, int status_code, const char *status_text, const char *content_type, const char *body) {
     char header[1024];
     int body_len = (int)strlen(body);
@@ -44,7 +104,6 @@ static void send_error(int client_fd, int status_code, const char *msg) {
     send_response(client_fd, status_code, "Error", "application/json", buf);
 }
 
-/* Parse simple JSON numbers or string values without bulky dependencies */
 static long long extract_json_int(const char *body, const char *key) {
     char pattern[64];
     snprintf(pattern, sizeof(pattern), "\"%s\"", key);
@@ -57,7 +116,7 @@ static long long extract_json_int(const char *body, const char *key) {
     return atoll(pos);
 }
 
-/* Handle route: POST /api/arrivals */
+/* POST /api/arrivals */
 static void handle_post_arrival(int client_fd, const char *body) {
     long long package_id = extract_json_int(body, "package_id");
     if (package_id < 0) {
@@ -67,6 +126,7 @@ static void handle_post_arrival(int client_fd, const char *body) {
 
     pthread_mutex_lock(&warehouse_mutex);
     ArrivalEvent ev = warehouse_add_detailed(global_warehouse, (package_id_t)package_id);
+    record_history(ev);
     size_t count = 0;
     Interval *all_ivs = warehouse_get_intervals(global_warehouse, &count);
     pthread_mutex_unlock(&warehouse_mutex);
@@ -115,7 +175,7 @@ static void handle_post_arrival(int client_fd, const char *body) {
     if (all_ivs) free(all_ivs);
 }
 
-/* Handle route: POST /api/arrivals/batch */
+/* POST /api/arrivals/batch */
 static void handle_post_batch(int client_fd, const char *body) {
     const char *arr_start = strstr(body, "\"package_ids\"");
     if (!arr_start) arr_start = strstr(body, "\"ids\"");
@@ -139,8 +199,9 @@ static void handle_post_batch(int client_fd, const char *body) {
         if (*p == ']') break;
         long long id = atoll(p);
         if (id >= 0) {
-            ArrivalResult r = warehouse_add(global_warehouse, (package_id_t)id);
-            if (r != ARRIVAL_DUPLICATE) added_count++;
+            ArrivalEvent ev = warehouse_add_detailed(global_warehouse, (package_id_t)id);
+            record_history(ev);
+            if (ev.result != ARRIVAL_DUPLICATE) added_count++;
             total_processed++;
         }
         while (*p && *p != ',' && *p != ']') p++;
@@ -157,7 +218,7 @@ static void handle_post_batch(int client_fd, const char *body) {
     send_json(client_fd, 200, resp);
 }
 
-/* Handle route: GET /api/intervals */
+/* GET /api/intervals */
 static void handle_get_intervals(int client_fd) {
     pthread_mutex_lock(&warehouse_mutex);
     size_t count = 0;
@@ -189,7 +250,7 @@ static void handle_get_intervals(int client_fd) {
     if (ivs) free(ivs);
 }
 
-/* Handle route: GET /api/gaps?low=X&high=Y */
+/* GET /api/gaps?low=X&high=Y */
 static void handle_get_gaps(int client_fd, const char *query) {
     long long low = 0, high = 1000;
     const char *p_low = strstr(query, "low=");
@@ -243,7 +304,121 @@ static void handle_get_gaps(int client_fd, const char *query) {
     if (recv) free(recv);
 }
 
-/* Handle route: GET /api/search?id=X */
+/* POST /api/analyze-range (Page 3 Range Analysis) */
+static void handle_post_analyze_range(int client_fd, const char *body) {
+    long long start_id = extract_json_int(body, "start");
+    long long end_id = extract_json_int(body, "end");
+    if (start_id < 0) start_id = extract_json_int(body, "low");
+    if (end_id < 0) end_id = extract_json_int(body, "high");
+
+    if (start_id < 0 || end_id < start_id) {
+        send_error(client_fd, 400, "Invalid start and end bounds (start must be >= 0 and <= end)");
+        return;
+    }
+
+    pthread_mutex_lock(&warehouse_mutex);
+    size_t recv_count = 0;
+    Interval *recv = warehouse_query_range(global_warehouse, (package_id_t)start_id, (package_id_t)end_id, &recv_count);
+
+    size_t gap_count = 0;
+    Interval *gaps = warehouse_query_gaps(global_warehouse, (package_id_t)start_id, (package_id_t)end_id, &gap_count);
+    pthread_mutex_unlock(&warehouse_mutex);
+
+    long long total_received_ids = 0;
+    for (size_t i = 0; i < recv_count; i++) {
+        total_received_ids += (recv[i].end - recv[i].start + 1);
+    }
+
+    long long total_missing_ids = 0;
+    long long largest_gap_size = 0;
+    Interval largest_gap = { -1, -1 };
+    for (size_t i = 0; i < gap_count; i++) {
+        long long sz = gaps[i].end - gaps[i].start + 1;
+        total_missing_ids += sz;
+        if (sz > largest_gap_size) {
+            largest_gap_size = sz;
+            largest_gap = gaps[i];
+        }
+    }
+
+    long long total_span = end_id - start_id + 1;
+    double coverage_pct = (total_span > 0) ? (((double)total_received_ids / (double)total_span) * 100.0) : 100.0;
+
+    char *resp = (char *)malloc(BUFFER_SIZE);
+    if (!resp) {
+        send_error(client_fd, 500, "Memory allocation error");
+        if (recv) free(recv);
+        if (gaps) free(gaps);
+        return;
+    }
+
+    int pos = snprintf(resp, BUFFER_SIZE,
+        "{\"success\":true,\"start\":%" PRId64 ",\"end\":%" PRId64 ","
+        "\"total_span\":%" PRId64 ","
+        "\"received_count\":%" PRId64 ","
+        "\"missing_count\":%" PRId64 ","
+        "\"coverage_percentage\":%.2f,"
+        "\"largest_missing_range\":{\"start\":%" PRId64 ",\"end\":%" PRId64 ",\"size\":%" PRId64 "},"
+        "\"received_intervals\":[",
+        (package_id_t)start_id, (package_id_t)end_id, total_span,
+        total_received_ids, total_missing_ids, coverage_pct,
+        largest_gap.start, largest_gap.end, largest_gap_size);
+
+    for (size_t i = 0; i < recv_count; i++) {
+        pos += snprintf(resp + pos, BUFFER_SIZE - pos,
+            "{\"start\":%" PRId64 ",\"end\":%" PRId64 "}%s",
+            recv[i].start, recv[i].end,
+            (i + 1 < recv_count) ? "," : "");
+    }
+
+    pos += snprintf(resp + pos, BUFFER_SIZE - pos, "],\"missing_intervals\":[");
+    for (size_t i = 0; i < gap_count; i++) {
+        pos += snprintf(resp + pos, BUFFER_SIZE - pos,
+            "{\"start\":%" PRId64 ",\"end\":%" PRId64 "}%s",
+            gaps[i].start, gaps[i].end,
+            (i + 1 < gap_count) ? "," : "");
+    }
+    pos += snprintf(resp + pos, BUFFER_SIZE - pos, "]}");
+
+    send_json(client_fd, 200, resp);
+    free(resp);
+    if (recv) free(recv);
+    if (gaps) free(gaps);
+}
+
+/* GET /api/history */
+static void handle_get_history(int client_fd) {
+    pthread_mutex_lock(&warehouse_mutex);
+    char *resp = (char *)malloc(BUFFER_SIZE);
+    if (!resp) {
+        pthread_mutex_unlock(&warehouse_mutex);
+        send_error(client_fd, 500, "Memory allocation error");
+        return;
+    }
+
+    int pos = snprintf(resp, BUFFER_SIZE, "{\"success\":true,\"count\":%zu,\"history\":[", history_count);
+    for (size_t i = 0; i < history_count; i++) {
+        size_t idx = history_count - 1 - i; /* latest first */
+        pos += snprintf(resp + pos, BUFFER_SIZE - pos,
+            "{\"package_id\":%" PRId64 ",\"operation\":\"%s\","
+            "\"latency_ns\":%" PRId64 ",\"explanation\":\"%s\","
+            "\"resulting_interval\":{\"start\":%" PRId64 ",\"end\":%" PRId64 "}}%s",
+            history_buffer[idx].package_id,
+            arrival_result_str(history_buffer[idx].result),
+            history_buffer[idx].latency_ns,
+            history_buffer[idx].explanation,
+            history_buffer[idx].touched_new.start,
+            history_buffer[idx].touched_new.end,
+            (i + 1 < history_count) ? "," : "");
+    }
+    pos += snprintf(resp + pos, BUFFER_SIZE - pos, "]}");
+    pthread_mutex_unlock(&warehouse_mutex);
+
+    send_json(client_fd, 200, resp);
+    free(resp);
+}
+
+/* GET /api/search?id=X */
 static void handle_get_search(int client_fd, const char *query) {
     long long target_id = -1;
     const char *p_id = strstr(query, "id=");
@@ -274,7 +449,7 @@ static void handle_get_search(int client_fd, const char *query) {
     send_json(client_fd, 200, resp);
 }
 
-/* Handle route: GET /api/analytics */
+/* GET /api/analytics */
 static void handle_get_analytics(int client_fd) {
     pthread_mutex_lock(&warehouse_mutex);
     WarehouseAnalytics an = warehouse_get_analytics(global_warehouse);
@@ -302,7 +477,7 @@ static void handle_get_analytics(int client_fd) {
     send_json(client_fd, 200, resp);
 }
 
-/* Handle route: GET /api/tree */
+/* GET /api/tree */
 static void handle_get_tree(int client_fd) {
     pthread_mutex_lock(&warehouse_mutex);
     TreeSnapshot snap = warehouse_get_tree_snapshot(global_warehouse);
@@ -339,16 +514,16 @@ static void handle_get_tree(int client_fd) {
     warehouse_free_tree_snapshot(snap);
 }
 
-/* Handle route: POST /api/reset */
+/* POST /api/reset */
 static void handle_post_reset(int client_fd) {
     pthread_mutex_lock(&warehouse_mutex);
     warehouse_clear(global_warehouse);
+    history_count = 0;
     pthread_mutex_unlock(&warehouse_mutex);
 
     send_json(client_fd, 200, "{\"success\":true,\"message\":\"Warehouse index reset successfully\"}");
 }
 
-/* Client request dispatcher */
 static void handle_client(int client_fd) {
     char buffer[BUFFER_SIZE];
     ssize_t bytes_read = read(client_fd, buffer, sizeof(buffer) - 1);
@@ -365,19 +540,16 @@ static void handle_client(int client_fd) {
         return;
     }
 
-    /* Handle CORS preflight OPTIONS request */
     if (strcmp(method, "OPTIONS") == 0) {
         send_response(client_fd, 204, "No Content", "text/plain", "");
         close(client_fd);
         return;
     }
 
-    /* Extract body if POST/PUT */
     const char *body = strstr(buffer, "\r\n\r\n");
     if (body) body += 4;
     else body = "";
 
-    /* Route matching */
     if (strcmp(method, "POST") == 0 && strcmp(uri, "/api/arrivals") == 0) {
         handle_post_arrival(client_fd, body);
     } else if (strcmp(method, "POST") == 0 && strcmp(uri, "/api/arrivals/batch") == 0) {
@@ -386,6 +558,10 @@ static void handle_client(int client_fd) {
         handle_get_intervals(client_fd);
     } else if (strcmp(method, "GET") == 0 && strncmp(uri, "/api/gaps", 9) == 0) {
         handle_get_gaps(client_fd, uri);
+    } else if (strcmp(method, "POST") == 0 && strcmp(uri, "/api/analyze-range") == 0) {
+        handle_post_analyze_range(client_fd, body);
+    } else if (strcmp(method, "GET") == 0 && strcmp(uri, "/api/history") == 0) {
+        handle_get_history(client_fd);
     } else if (strcmp(method, "GET") == 0 && strncmp(uri, "/api/search", 11) == 0) {
         handle_get_search(client_fd, uri);
     } else if (strcmp(method, "GET") == 0 && strcmp(uri, "/api/analytics") == 0) {
@@ -395,7 +571,7 @@ static void handle_client(int client_fd) {
     } else if (strcmp(method, "POST") == 0 && strcmp(uri, "/api/reset") == 0) {
         handle_post_reset(client_fd);
     } else if (strcmp(method, "GET") == 0 && strcmp(uri, "/health") == 0) {
-        send_json(client_fd, 200, "{\"status\":\"healthy\",\"service\":\"flashhack-c-engine\",\"version\":\"2.0.0\"}");
+        send_json(client_fd, 200, "{\"status\":\"healthy\",\"service\":\"flashhack-c-engine\",\"version\":\"2.1.0\"}");
     } else {
         send_error(client_fd, 404, "Endpoint not found");
     }
@@ -443,7 +619,7 @@ int main(int argc, char **argv) {
     }
 
     printf("=========================================================\n");
-    printf(" FLASHHACK Live Arrival C Engine HTTP Server v2.0\n");
+    printf(" FLASHHACK Academic C Engine HTTP Server v2.1\n");
     printf(" Listening on http://0.0.0.0:%d\n", port);
     printf("=========================================================\n");
 
