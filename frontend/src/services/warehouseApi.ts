@@ -531,6 +531,7 @@ export const warehouseApi = {
         const ivs = data.received_intervals as Interval[];
         engine.intervals = [...ivs];
         engine.totalPackages = data.total_received ?? 0;
+        engine.saveToStorage();
         return true;
       }
     } catch (err) {

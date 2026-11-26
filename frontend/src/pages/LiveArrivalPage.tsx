@@ -80,7 +80,13 @@ export const LiveArrivalPage: React.FC = () => {
   };
 
   useEffect(() => {
+    // First render with local cached state, then hydrate immediately from authoritative Supabase cloud
     refreshAll();
+    warehouseApi.reconstructFromCloud().then((reconstructed) => {
+      if (reconstructed) {
+        refreshAll();
+      }
+    });
   }, []);
 
   const handleAddPackage = async (e: React.FormEvent) => {
