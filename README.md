@@ -1,4 +1,4 @@
-# Flashhack — Warehouse Live Arrival Index & Gap Monito
+# Flashhack — Warehouse Live Arrival Index & Gap Monitor
 
 An end-to-end, high-performance solution for **Problem Statement 09: The Warehouse's Broken Number Ranges** (Problem Domain: *Balanced Searching and Ordered Indexing*).
 
