@@ -89,11 +89,96 @@ export interface TreeResponse {
   nodes: AVLNodeSnapshot[];
 }
 
-// In-Memory AVL Tree & Interval Engine running right in browser / mobile
+// In-Memory AVL Tree & Interval Engine running right in browser / mobile with Supabase / LocalStorage Persistence
 class LocalWarehouseEngine {
   intervals: Interval[] = [];
   history: HistoryItem[] = [];
   totalPackages: number = 0;
+  private isLoadedFromStorage: boolean = false;
+
+  constructor() {
+    this.loadFromStorage();
+  }
+
+  saveToStorage() {
+    try {
+      localStorage.setItem('warehouse_intervals_v2', JSON.stringify(this.intervals));
+      localStorage.setItem('warehouse_history_v2', JSON.stringify(this.history));
+      localStorage.setItem('warehouse_total_v2', String(this.totalPackages));
+    } catch (e) {}
+  }
+
+  loadFromStorage() {
+    if (this.isLoadedFromStorage) return;
+    try {
+      const savedIv = localStorage.getItem('warehouse_intervals_v2');
+      if (savedIv) {
+        this.intervals = JSON.parse(savedIv);
+        this.isLoadedFromStorage = true;
+      }
+      const savedHist = localStorage.getItem('warehouse_history_v2');
+      if (savedHist) this.history = JSON.parse(savedHist);
+      const savedTotal = localStorage.getItem('warehouse_total_v2');
+      if (savedTotal) this.totalPackages = parseInt(savedTotal, 10) || 0;
+    } catch (e) {}
+  }
+
+  async syncWithSupabase() {
+    try {
+      const { data, error } = await supabase
+        .from('package_arrivals')
+        .select('package_id')
+        .order('arrival_sequence', { ascending: true })
+        .limit(500);
+
+      if (!error && data && data.length > 0) {
+        // Re-construct intervals from database so all devices stay in sync!
+        this.intervals = [];
+        this.totalPackages = 0;
+        for (const row of data) {
+          if (row.package_id !== null && row.package_id !== undefined) {
+            this.addRaw(Number(row.package_id));
+          }
+        }
+        this.saveToStorage();
+      }
+    } catch (e) {}
+  }
+
+  private addRaw(id: number) {
+    let low = 0, high = this.intervals.length - 1, idx = this.intervals.length;
+    while (low <= high) {
+      const mid = Math.floor((low + high) / 2);
+      if (this.intervals[mid].start > id) {
+        idx = mid;
+        high = mid - 1;
+      } else {
+        low = mid + 1;
+      }
+    }
+
+    const leftIdx = idx - 1;
+    const rightIdx = idx;
+
+    if (leftIdx >= 0 && id >= this.intervals[leftIdx].start && id <= this.intervals[leftIdx].end) {
+      return;
+    }
+
+    this.totalPackages++;
+    const canMergeLeft = leftIdx >= 0 && this.intervals[leftIdx].end + 1 === id;
+    const canMergeRight = rightIdx < this.intervals.length && id + 1 === this.intervals[rightIdx].start;
+
+    if (canMergeLeft && canMergeRight) {
+      this.intervals[leftIdx].end = this.intervals[rightIdx].end;
+      this.intervals.splice(rightIdx, 1);
+    } else if (canMergeLeft) {
+      this.intervals[leftIdx].end = id;
+    } else if (canMergeRight) {
+      this.intervals[rightIdx].start = id;
+    } else {
+      this.intervals.splice(idx, 0, { start: id, end: id });
+    }
+  }
 
   add(id: number): ArrivalResponse {
     const t0 = performance.now();
@@ -159,8 +244,9 @@ class LocalWarehouseEngine {
       resulting_interval: touchedNew
     };
     this.history.unshift(historyItem);
+    this.saveToStorage();
 
-    // Sync to Supabase in background
+    // Fire and forget insert into Supabase
     try {
       supabase.from('package_arrivals').insert([{
         package_id: id,
