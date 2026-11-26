@@ -3,41 +3,38 @@
 @tailwind utilities;
 
 :root {
-  --background: #F5F3ED;
+  --background: #F7F7F2;
   --surface: #FFFFFF;
-  --surface-muted: #EAE8DF;
-  --ink: #202B29;
-  --ink-muted: #68746F;
-  --primary: #176B5B;
-  --primary-dark: #104C42;
-  --accent: #E3A45B;
-  --accent-secondary: #D16F51;
-  --success: #3F876C;
-  --warning: #D99A45;
-  --danger: #C75D50;
-  --border: #DCDDD4;
+  --primary: #246B5A;
+  --primary-light: #DDEBE4;
+  --accent: #E4A75B;
+  --text: #26332F;
+  --muted: #77827C;
+  --border: #E2E5DF;
+  --received: #38866C;
+  --missing: #D99A54;
 }
 
 body {
   margin: 0;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   background-color: var(--background);
-  color: var(--ink);
-  overflow-x: hidden;
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
 }
 
-/* Custom scrollbars for data tables and logs */
+/* Subtle thin custom scrollbar */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #DCDDD4;
-  border-radius: 3px;
+  background: #E2E5DF;
+  border-radius: 2px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #B8BAAE;
+  background: #C4C8BE;
 }

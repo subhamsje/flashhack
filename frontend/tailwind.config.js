@@ -5,31 +5,21 @@ export default {
   theme: {
     extend: {
       colors: {
-        background: '#F5F3ED',
+        background: '#F7F7F2',
         surface: '#FFFFFF',
-        'surface-muted': '#EAE8DF',
-        ink: '#202B29',
-        'ink-muted': '#68746F',
         primary: {
-          DEFAULT: '#176B5B',
-          dark: '#104C42',
-          light: '#238975',
+          DEFAULT: '#246B5A',
+          light: '#DDEBE4',
+          dark: '#1A4F42',
         },
         accent: {
-          DEFAULT: '#E3A45B',
-          secondary: '#D16F51',
+          DEFAULT: '#E4A75B',
         },
-        success: '#3F876C',
-        warning: '#D99A45',
-        danger: '#C75D50',
-        border: '#DCDDD4',
-        dark: {
-          background: '#172421',
-          surface: '#21312D',
-          border: '#3C514A',
-          text: '#F2F1E9',
-          muted: '#8A9E97',
-        },
+        text: '#26332F',
+        muted: '#77827C',
+        border: '#E2E5DF',
+        received: '#38866C',
+        missing: '#D99A54',
       },
       fontFamily: {
         serif: ['Newsreader', 'Georgia', 'serif'],
